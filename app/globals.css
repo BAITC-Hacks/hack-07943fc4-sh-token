@@ -441,6 +441,9 @@
 [data-slot="badge"][data-tone="sky"], [data-slot="badge"][data-tone="success"] { color: var(--sky) !important; background: rgba(142, 201, 255, 0.12) !important; border-color: currentColor !important; }
 [data-slot="badge"][data-tone="warning"] { color: var(--warning) !important; background: rgba(255, 194, 75, 0.12) !important; border-color: currentColor !important; }
 [data-slot="badge"][data-tone="danger"] { color: var(--destructive) !important; background: rgba(255, 74, 61, 0.12) !important; border-color: currentColor !important; }
+[data-slot="badge"][data-tone="primary"] { color: var(--primary) !important; border-color: currentColor !important; }
+[data-slot="badge"][data-tone="foreground"] { color: var(--foreground) !important; border-color: currentColor !important; }
+[data-slot="badge"][data-tone="dim"] { color: var(--dim) !important; border-color: currentColor !important; }
 
 /* Кнопка-тон: <Button data-tone="sky"> */
 :is(button, a)[data-variant][data-tone="sky"] { background: rgba(142, 201, 255, 0.12); color: var(--sky); border: 1px solid rgba(142, 201, 255, 0.5); box-shadow: var(--glow-sky); }
