@@ -89,7 +89,7 @@ export function MoneyGraphDashboard() {
   if(phase!=="done"||!data||!run)return <AnalysisInput busy={phase==="loading"} error={error} reviewCount={review.length} onRun={calculate} onBack={data&&run?()=>setPhase("done"):undefined}/>
   if(!selected)return <div className="hud-panel p-8"><p>В выгрузке нет узлов.</p><Button onClick={()=>setPhase("idle")}>Выбрать данные</Button></div>
   const countItems=[["Узлы",data.nodes.length],["Исходные",run.seedCount],["Переводы",data.meta.transactions],["Кластеры",data.clusters.length]] as const
-  return <section className="space-y-3" data-agent="done">
+  return <section className="analyst-workspace space-y-4">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
       <div className="flex items-center gap-4"><h1 className="hud-caps text-2xl tracking-widest">STRATA</h1><div className="hidden border-l border-border pl-4 text-xs leading-5 text-muted-foreground sm:block"><p>Исследование денежных потоков</p><p className="hud-num text-[10px]">{data.meta.periodStart} — {data.meta.periodEnd}</p></div></div>
       <form className="relative flex min-w-0 flex-1 gap-1 sm:max-w-sm" onSubmit={e=>{e.preventDefault();search()}}>
@@ -104,24 +104,24 @@ export function MoneyGraphDashboard() {
       <span className="text-muted-foreground">Оборот <span className="hud-num ml-1 text-sky">{money.format(data.meta.turnoverKzt)} ₸</span></span>
       <details className="relative ml-auto text-xs"><summary className="cursor-pointer text-dim">Данные и расчёт</summary><div className="absolute right-0 top-full z-30 mt-2 w-72 space-y-2 border border-line-strong bg-background p-4 shadow-glow"><p>{run.source==="organizers"?"Кейс организаторов":"Загруженная выгрузка"}</p><p>{run.elapsedSeconds} с · {new Date(run.completedAt).toLocaleString("ru-RU")}</p><p className="hud-num break-all text-[10px]">{run.id}</p><p className="text-dim">{run.files.map(f=>f.name).join(" · ")}</p><p className="text-warning">Только внутрибанковские переводы от 5 000 ₸. Глубина наблюдения ограничена четырьмя коленами.</p></div></details>
     </div>
-    <div className="flex flex-wrap items-center gap-1 border-b border-border" role="tablist" aria-label="Разделы исследования">
+    <div className="relative z-20 flex flex-wrap items-center gap-1 border-b border-border" role="tablist" aria-label="Разделы исследования">
       {([["explore","Исследование"],["signals","Сигналы и сценарии"],["review","Список проверки · "+review.length]] as const).map(([id,label])=><Button key={id} role="tab" id={"tab-"+id} aria-selected={tab===id} aria-controls={"panel-"+id} variant="ghost" className={tab===id?"border-b-2 border-primary text-primary":""} onClick={()=>setTab(id)}>{label}</Button>)}
-      <span className="ml-auto hidden text-[10px] text-dim lg:inline">Гипотезы по наблюдаемой сети · решение за аналитиком</span>
+      <details className="relative ml-auto text-xs"><summary className="cursor-pointer px-3 py-2 text-muted-foreground">Как работать</summary><div className="absolute right-0 top-full z-30 mt-2 w-72 space-y-3 border border-border bg-background p-4 leading-6"><p>1. Выберите клиента из очереди приоритетов или найдите его по GID.</p><p>2. Проследите входы и выходы на графе, прочитайте обоснование и ограничения в карточке.</p><p>3. Добавьте клиента в список проверки. Проверьте список и экспортируйте CSV.</p><p className="text-sky">Сигналы и сценарии — дополнительный путь поиска кандидатов. Роль не доказывает нарушение.</p></div></details>
     </div>
     <AnimatePresence mode="wait">
       <motion.div key={tab} role="tabpanel" id={"panel-"+tab} aria-labelledby={"tab-"+tab} initial={reduced?false:{opacity:0,y:6}} animate={{opacity:1,y:0}} exit={{opacity:0}} transition={{duration:reduced?0:duration.base,ease}}>
         {tab==="explore"?<div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_310px] xl:grid-cols-[250px_minmax(0,1fr)_310px]">
-          <aside className="order-3 flex min-w-0 flex-col border border-border bg-panel lg:col-span-2 xl:order-none xl:col-span-1 xl:h-[calc(100dvh-220px)] xl:min-h-[490px]">
+          <aside className="flex min-w-0 flex-col border border-border bg-panel lg:col-span-2 xl:col-span-1 xl:h-[calc(100dvh-240px)] xl:min-h-[520px]">
             <div className="space-y-3 border-b border-border p-3">
               <div className="flex items-center justify-between"><h2 className="hud-caps text-xs">Очередь проверки</h2><span className="hud-num text-xs text-sky">{candidates.length}</span></div>
               <div className="flex gap-1"><Button size="sm" variant={scope==="top"?"secondary":"ghost"} onClick={()=>{setScope("top");setLimit(100)}}>Топ {data.topNodes.length}</Button><Button size="sm" variant={scope==="all"?"secondary":"ghost"} onClick={()=>{setScope("all");setLimit(100)}}>Вся сеть</Button></div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
                 <select aria-label="Фильтр по роли" value={role} onChange={e=>{setRole(e.target.value as MoneyRole|"all");setLimit(100)}} className="min-w-0 border border-border bg-background p-2 text-xs"><option value="all">Все роли</option>{MONEY_ROLES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select>
                 <select aria-label="Фильтр по кластеру" value={cluster??"all"} onChange={e=>{if(e.target.value==="all")setCluster(null);else openCluster(Number(e.target.value));setLimit(100)}} className="min-w-0 border border-border bg-background p-2 text-xs"><option value="all">Все кластеры</option>{data.clusters.map(c=><option key={c.cluster_id} value={c.cluster_id}>Кластер {c.cluster_id}</option>)}</select>
               </div>
               <Button size="sm" variant="outline" className="w-full text-[10px]" disabled={!candidates.length} onClick={()=>{const ids=candidates.slice(0,10).map(n=>n.gid);setReview(current=>[...new Set([...current,...ids])]);toast.success("Первые "+ids.length+" кандидатов включены в список")}}><Plus/>Выбрать первые {Math.min(10,candidates.length)}</Button>
             </div>
-            <div className="max-h-80 flex-1 overflow-auto xl:max-h-none">
+            <div className="grid max-h-40 flex-1 grid-cols-[repeat(auto-fill,minmax(190px,1fr))] overflow-auto xl:block xl:max-h-none">
               {!candidates.length&&<p className="p-4 text-xs text-muted-foreground">По выбранным фильтрам кандидатов нет. Попробуйте «Вся сеть» или другой фильтр.</p>}
               {candidates.slice(0,limit).map(node=><div key={node.gid} className={"group flex items-start gap-1 border-b border-border p-3 transition-colors "+(node.gid===gid?"border-l-2 border-l-primary bg-primary/5":"hover:bg-muted/40")}>
                 <button className="min-w-0 flex-1 text-left" aria-label={"Открыть кандидата "+node.gid} aria-pressed={node.gid===gid} onClick={()=>openNode(node.gid)}>
@@ -132,7 +132,7 @@ export function MoneyGraphDashboard() {
               {candidates.length>limit&&<Button variant="ghost" className="w-full" onClick={()=>setLimit(limit+100)}>Показать ещё {Math.min(100,candidates.length-limit)}</Button>}
             </div>
           </aside>
-          <div className="min-w-0 border border-border bg-panel xl:h-[calc(100dvh-220px)] xl:min-h-[490px]">
+          <div className="min-w-0 border border-border bg-panel xl:h-[calc(100dvh-240px)] xl:min-h-[520px]">
             <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs"><span className="hud-caps text-sky">{cluster===null?"Вся сеть":"Кластер "+cluster} / <span className="hud-num text-foreground">…{gid.slice(-8)}</span></span>{cluster!==null&&<Button variant="ghost" size="icon-sm" aria-label="Сбросить кластер" onClick={()=>setCluster(null)}><X/></Button>}<RoleBadge role={selected.role}/></div>
             <div className="h-[calc(100%-45px)]"><FlowExplorer key={gid+mode} data={data} gid={gid} mode={mode} onMode={setMode} onNode={openNode} onCluster={openCluster} cluster={cluster}
               onBack={history.length?()=>{setGid(history.at(-1)!);setHistory(previous=>previous.slice(0,-1))}:undefined}/></div>

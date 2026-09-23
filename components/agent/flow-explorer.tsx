@@ -27,14 +27,14 @@ export function FlowExplorer({ data, gid, mode, onMode, onNode, onCluster, onBac
   const positions = new Map<string, Point>()
   let shown: MoneyEdge[] = []
   if (mode === "path") {
-    path.forEach((id,i) => positions.set(id, { x: path.length === 1 ? 350 : 70 + i * 560 / (path.length - 1), y: 235 }))
+    path.forEach((id,i) => positions.set(id, { x: path.length === 1 ? 350 : 70 + i * 560 / (path.length - 1), y: 190 }))
     shown = path.slice(1).flatMap((id,i) => data.edges.filter(e => e.src === path[i] && e.dst === id))
   } else {
-    positions.set(gid, { x: 350, y: 235 })
+    positions.set(gid, { x: 350, y: 190 })
     const left = [...new Set(incoming.slice(0,5).map(e => e.src))]
     const right = [...new Set(outgoing.slice(0,5).map(e => e.dst))]
-    left.forEach((id,i) => positions.set(id, { x: 95, y: 235 + (i - (left.length-1)/2) * 90 }))
-    right.forEach((id,i) => { if (!positions.has(id)) positions.set(id, { x: 605, y: 235 + (i - (right.length-1)/2) * 90 }) })
+    left.forEach((id,i) => positions.set(id, { x: 155, y: 190 + (i - (left.length-1)/2) * 70 }))
+    right.forEach((id,i) => { if (!positions.has(id)) positions.set(id, { x: 545, y: 190 + (i - (right.length-1)/2) * 70 }) })
     shown = [...incoming, ...outgoing].filter(e => positions.has(e.src) && positions.has(e.dst))
   }
   const all = incoming.length + outgoing.length + data.edges.filter(e => e.src === gid && e.dst === gid).length
@@ -47,13 +47,13 @@ export function FlowExplorer({ data, gid, mode, onMode, onNode, onCluster, onBac
       <Button className="ml-auto" size="icon-sm" variant="ghost" aria-label={animate ? "Остановить анимацию потоков" : "Включить анимацию потоков"} onClick={() => setAnimate(!animate)}>{animate ? <Pause /> : <Play />}</Button>
     </div>
     {mode === "clusters" ? <ClusterMap data={data} selected={cluster} onCluster={onCluster} /> : <>
-      <div className="flex justify-between gap-2 px-4 pt-3 text-[11px] text-muted-foreground">
-        <span>{mode === "flows" ? "ВХОДЯЩИЕ → ВЫБРАННЫЙ УЗЕЛ → ИСХОДЯЩИЕ" : "КРАТЧАЙШИЙ НАБЛЮДАЕМЫЙ ПУТЬ"}</span>
-        <span className="hud-num">{mode === "flows" ? shown.length + " / " + all + " связей" : path.length ? path.length-1 + " переходов" : "Путь не найден"}</span>
+      <div className="flex flex-wrap justify-between gap-x-4 gap-y-2 px-4 py-3 text-xs text-muted-foreground">
+        <span>{mode === "flows" ? "Входящие → клиент → исходящие" : "Кратчайший наблюдаемый путь"}</span>
+        <span className="hud-num whitespace-nowrap">{mode === "flows" ? shown.length + " / " + all + " связей" : path.length ? "Переходов: " + (path.length-1) : "Путь не найден"}</span>
       </div>
       <div className="hud-blueprint relative flex min-h-[260px] flex-1 items-center">
         {mode === "path" && !path.length ? <p className="m-auto max-w-sm p-6 text-sm text-muted-foreground">Направленного пути от исходных клиентов в этой выборке нет. Проверьте полноту данных.</p> :
-          <svg viewBox="0 0 700 500" className="absolute inset-0 h-full w-full" role="group" aria-label={mode === "path" ? "Маршрут от исходного клиента" : "Входящие и исходящие денежные потоки"}>
+          <svg viewBox="0 0 700 380" className="absolute inset-0 h-full w-full" role="group" aria-label={mode === "path" ? "Маршрут от исходного клиента" : "Входящие и исходящие денежные потоки"}>
             <defs><marker id={marker} markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L0,10 L10,5 z" className="fill-sky" /></marker></defs>
             {shown.map(e => {
               const from = positions.get(e.src)!, to = positions.get(e.dst)!
@@ -73,6 +73,9 @@ export function FlowExplorer({ data, gid, mode, onMode, onNode, onCluster, onBac
             })}
             {[...positions].map(([id,p]) => {
               const node = nodes.get(id)!
+              const side = mode === "flows" && id !== gid
+              const labelX = side ? p.x + (p.x < 350 ? -32 : 32) : p.x
+              const anchor = side ? (p.x < 350 ? "end" : "start") : "middle"
               return <g key={id} role="button" tabIndex={0} aria-label={"Открыть узел "+id} className="cursor-pointer outline-none"
                 onClick={() => { setEdge(null); onNode(id) }} onKeyDown={event => { if (["Enter"," "].includes(event.key)) { event.preventDefault(); setEdge(null); onNode(id) } }}>
                 <title>{id+" · "+ROLE_LABELS[node.role]}</title>
@@ -80,8 +83,8 @@ export function FlowExplorer({ data, gid, mode, onMode, onNode, onCluster, onBac
                 {node.is_seed && <circle cx={p.x} cy={p.y} r={id === gid ? 31 : 23} className="fill-none stroke-warning" />}
                 <circle cx={p.x} cy={p.y} r={id === gid ? 25 : 17} className={"fill-panel "+roleStroke(node.role)} strokeWidth={id === gid ? 3 : 2} />
                 {id === gid && <circle cx={p.x} cy={p.y} r="5" className="fill-primary" />}
-                <text x={p.x} y={p.y+43} textAnchor="middle" className="fill-foreground font-mono text-[11px]">…{id.slice(-7)}</text>
-                <text x={p.x} y={p.y+59} textAnchor="middle" className="fill-muted-foreground text-[10px]">{ROLE_LABELS[node.role]}</text>
+                <text x={labelX} y={p.y+(side ? 0 : 43)} textAnchor={anchor} className="fill-foreground font-mono text-[13px]">…{id.slice(-7)}</text>
+                <text x={labelX} y={p.y+(side ? 18 : 63)} textAnchor={anchor} className="fill-muted-foreground text-xs">{ROLE_LABELS[node.role]}</text>
               </g>
             })}
           </svg>}

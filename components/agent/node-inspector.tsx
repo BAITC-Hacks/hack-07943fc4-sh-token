@@ -12,24 +12,24 @@ export function NodeInspector({ node, data, included, onToggle, onPath }: {
   const cluster = data.clusters.find(c => c.cluster_id === node.cluster_id)
   const s = node.signals
   const ratio = node.in_kzt > 0 && !node.is_seed ? node.out_kzt / node.in_kzt : null
-  return <aside className="min-w-0 overflow-auto border border-border bg-panel xl:max-h-[calc(100dvh-220px)]" aria-label="Карточка выбранного узла">
+  return <aside className="min-w-0 overflow-auto border border-border bg-panel xl:max-h-[max(520px,calc(100dvh-240px))]" aria-label="Карточка выбранного узла">
     <div className="sticky top-0 z-10 space-y-3 border-b border-border bg-background p-4">
-      <div className="flex items-center justify-between gap-2"><span className="hud-caps text-[11px] text-sky">Выбранный клиент</span><span className="hud-tag">{node.is_seed ? "Исходный / seed" : "Найденный в сети"}</span></div>
-      <div className="flex items-center justify-between gap-1"><h2 className="hud-num text-sm">{node.gid}</h2><Button size="icon-sm" variant="ghost" aria-label="Скопировать GID" onClick={async()=>{try{await navigator.clipboard.writeText(node.gid);toast.success("GID скопирован")}catch{toast.error("Не удалось скопировать GID")}}}><Copy className="size-3" /></Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><span className="hud-caps text-[11px] text-sky">Выбранный клиент</span><span className="hud-tag">{node.is_seed ? "Исходный / seed" : "Не seed"}</span></div>
+      <div className="flex items-center justify-between gap-3"><h2 className="hud-num text-xs">{node.gid}</h2><Button size="icon-sm" variant="ghost" aria-label="Скопировать GID" onClick={async()=>{try{await navigator.clipboard.writeText(node.gid);toast.success("GID скопирован")}catch{toast.error("Не удалось скопировать GID")}}}><Copy className="size-3" /></Button></div>
       <div className="flex flex-wrap items-center justify-between gap-2"><RoleBadge role={node.role} /><ReviewButton gid={node.gid} included={included} onToggle={onToggle}/></div>
     </div>
     <div className="space-y-4 p-4">
       <div className="border-l-2 border-primary pl-3 text-sm leading-6">{node.evidence}</div>
       <div className="grid grid-cols-2 gap-3">
-        <div><p className="text-[10px] text-dim">ПРИОРИТЕТ ПРОВЕРКИ</p><p className="hud-num mt-1 text-xl text-sky">{score(node.priority_score)}</p></div>
-        <div><p className="text-[10px] text-dim">СИЛА СИГНАЛА РОЛИ</p><p className="hud-num mt-1 text-xl">{score(node.role_score)}</p></div>
+        <div><p className="text-xs text-muted-foreground" title="Приоритет углублённой проверки">Приоритет</p><p className="hud-num mt-2 text-xl text-sky">{score(node.priority_score)}</p></div>
+        <div><p className="text-xs text-muted-foreground">Сигнал роли</p><p className="hud-num mt-2 text-xl">{score(node.role_score)}</p></div>
       </div>
       <div className="grid grid-cols-2 gap-3 border-y border-border py-3">
-        <div><p className="flex items-center gap-1 text-[11px] text-muted-foreground"><ArrowDownLeft className="size-3 text-sky"/>Вход · {node.in_deg} отправителей</p><p className="hud-num mt-1 text-sm">{money.format(node.in_kzt)} ₸</p></div>
-        <div><p className="flex items-center gap-1 text-[11px] text-muted-foreground"><ArrowUpRight className="size-3 text-primary"/>Выход · {node.out_deg} получателей</p><p className="hud-num mt-1 text-sm">{money.format(node.out_kzt)} ₸</p></div>
+        <div className="space-y-2"><p className="flex items-center gap-2 text-xs text-muted-foreground"><ArrowDownLeft className="size-3 shrink-0 text-sky"/><span>Входящие</span></p><p className="hud-num text-xs">{money.format(node.in_kzt)} ₸</p><p className="text-xs text-muted-foreground">{node.in_deg} отправителей</p></div>
+        <div className="space-y-2"><p className="flex items-center gap-2 text-xs text-muted-foreground"><ArrowUpRight className="size-3 shrink-0 text-primary"/><span>Исходящие</span></p><p className="hud-num text-xs">{money.format(node.out_kzt)} ₸</p><p className="text-xs text-muted-foreground">{node.out_deg} получателей</p></div>
       </div>
       <div className="flex flex-wrap gap-2 text-xs"><span className="hud-tag">Кластер {node.cluster_id}</span><span className="hud-tag">Колено {node.depth}</span><span className="hud-tag text-sky">Связан с {node.seed_reach} seed</span></div>
-      <Button className="w-full" size="sm" variant="outline" onClick={onPath}>Показать путь от исходного клиента →</Button>
+      <Button className="w-full" size="sm" variant="outline" onClick={onPath}>Путь от исходных клиентов →</Button>
       {node.truncated_by_depth && <p className="border border-warning/30 p-2 text-xs leading-5 text-warning">Граница выгрузки. Отсутствие выхода не подтверждает оседание денег.</p>}
       <details className="border-t border-border pt-3"><summary className="cursor-pointer text-xs text-sky">Потоки и временные сигналы</summary><div className="mt-3 space-y-2 text-xs leading-5 text-muted-foreground">
         <p>Выход / вход: {ratio === null ? "не применимо" : (ratio*100).toFixed(1)+"%"} наблюдаемого потока. Это не баланс счёта.</p>
