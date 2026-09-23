@@ -47,6 +47,17 @@ export function parseMoneyGraph(value: unknown): MoneyGraphData {
   if (clusterIds.size !== clusters.length || !nodes.every((node) => clusterIds.has(node.cluster_id))) return fail()
   if (!topNodes.every((node) => isRecord(node) && isCount(node.rank) && gids.has(node.gid)
     && isRole(node.role) && isScore(node.priority_score) && typeof node.why === "string")) return fail()
+  if(value.patterns!==undefined){
+    const p=value.patterns
+    if(!isRecord(p)||!Array.isArray(p.chains)||!Array.isArray(p.cycles)
+      ||![p.chain_count,p.cycle_count,p.max_hop_days,p.max_cycle_length,p.max_results].every(isCount)
+      ||typeof p.chain_search_limited!=="boolean"||typeof p.cycle_search_limited!=="boolean")return fail()
+    for(const [routes,cycle] of [[p.chains,false],[p.cycles,true]] as const){
+      if(!routes.every(r=>isRecord(r)&&Array.isArray(r.gids)&&r.gids.every(g=>gids.has(g))
+        &&(cycle?r.gids.length>=4&&r.gids.length<=5&&r.gids[0]===r.gids.at(-1):r.gids.length===3&&isCount(r.distinct_days))
+        &&isCount(r.occurrences)&&Array.isArray(r.examples)&&r.examples.every(d=>Array.isArray(d)&&d.length===(r.gids as unknown[]).length-1&&d.every(v=>typeof v==="string"&&isDateOrNull(v)))))return fail()
+    }
+  }
   return value as MoneyGraphData
 }
 

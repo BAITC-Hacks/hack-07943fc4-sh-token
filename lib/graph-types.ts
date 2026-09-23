@@ -72,6 +72,12 @@ export type MoneyGraphMeta = {
 }
 
 export type MoneyGraphData = {
+  patterns?: {
+    chains: { gids: string[]; occurrences: number; distinct_days: number; examples: string[][] }[]
+    cycles: { gids: string[]; occurrences: number; examples: string[][] }[]
+    chain_count: number; cycle_count: number; chain_search_limited: boolean; cycle_search_limited: boolean
+    max_hop_days: number; max_cycle_length: number; max_results: number
+  }
   meta: MoneyGraphMeta
   nodes: MoneyNode[]
   edges: MoneyEdge[]

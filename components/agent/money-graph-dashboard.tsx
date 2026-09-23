@@ -2,18 +2,20 @@
 
 import * as React from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { Check, Download, Plus, Search, X } from "lucide-react"
+import { Check, Download, Plus, Search, X, PanelRightOpen } from "lucide-react"
 import { toast } from "sonner"
 import { CountUp } from "@/components/hud/hud-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { analyzeMoneyGraph } from "@/lib/api"
+import { analyzeMoneyGraph, downloadAnalysisCsv } from "@/lib/api"
+import { GraphAssistant } from "./graph-assistant"
 import { indexMoneyGraph, isGid, MONEY_ROLES } from "@/lib/graph-data"
 import type { AnalysisRun, AnalysisSource, MoneyGraphData, MoneyNode, MoneyRole } from "@/lib/graph-types"
 import { buildReviewCsv, toggleReviewGid } from "@/lib/review-list"
 import { duration, ease } from "@/lib/motion"
 import { AnalysisInput } from "./analysis-input"
-import { ReviewList } from "./review-list"
+import { ReviewList, ReviewButton } from "./review-list"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { FlowExplorer, type GraphMode } from "./flow-explorer"
 import { NodeInspector } from "./node-inspector"
 import { AnalysisInsights } from "./analysis-insights"
@@ -37,6 +39,8 @@ export function MoneyGraphDashboard() {
   const [role,setRole] = React.useState<MoneyRole|"all">("all")
   const [scope,setScope] = React.useState<"top"|"all">("top")
   const [limit,setLimit] = React.useState(100)
+  const [inspector,setInspector] = React.useState(false)
+  const [queueOpen,setQueueOpen] = React.useState(false)
   const {nodesById,membersByCluster} = React.useMemo(()=>data?indexMoneyGraph(data):{nodesById:new Map<string,MoneyNode>(),membersByCluster:new Map<number,MoneyNode[]>()},[data])
   const selected = nodesById.get(gid)
   const calculate = async (source:AnalysisSource,files:File[] = []) => {
@@ -86,18 +90,18 @@ export function MoneyGraphDashboard() {
     const base=scope==="top"?data.topNodes.map(n=>nodesById.get(n.gid)!).filter(Boolean):[...data.nodes].sort((a,b)=>b.priority_score-a.priority_score||a.gid.localeCompare(b.gid))
     return base.filter(n=>(role==="all"||n.role===role)&&(cluster===null||n.cluster_id===cluster))
   },[data,nodesById,scope,role,cluster])
-  if(phase!=="done"||!data||!run)return <AnalysisInput busy={phase==="loading"} error={error} reviewCount={review.length} onRun={calculate} onBack={data&&run?()=>setPhase("done"):undefined}/>
-  if(!selected)return <div className="hud-panel p-8"><p>В выгрузке нет узлов.</p><Button onClick={()=>setPhase("idle")}>Выбрать данные</Button></div>
+  if(phase!=="done"||!data||!run)return <><AnalysisInput busy={phase==="loading"} error={error} reviewCount={review.length} onRun={calculate} onBack={data&&run?()=>setPhase("done"):undefined}/><GraphAssistant gid="" review={[]} onNode={openNode}/></>
+  if(!selected)return <><div className="hud-panel p-8"><p>В выгрузке нет узлов.</p><Button onClick={()=>setPhase("idle")}>Выбрать данные</Button></div><GraphAssistant gid="" review={[]} onNode={openNode}/></>
   const countItems=[["Узлы",data.nodes.length],["Исходные",run.seedCount],["Переводы",data.meta.transactions],["Кластеры",data.clusters.length]] as const
-  return <section className="analyst-workspace space-y-4">
+  return <section className="analyst-workspace space-y-4 pb-24">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-      <div className="flex items-center gap-4"><h1 className="hud-caps text-2xl tracking-widest">STRATA</h1><div className="hidden border-l border-border pl-4 text-xs leading-5 text-muted-foreground sm:block"><p>Исследование денежных потоков</p><p className="hud-num text-[10px]">{data.meta.periodStart} — {data.meta.periodEnd}</p></div></div>
+      <div className="flex items-center gap-4"><h1 className="hud-caps text-2xl tracking-widest">STRATA</h1><div className="hidden border-l border-border pl-4 text-xs leading-5 text-muted-foreground lg:block"><p>Исследование денежных потоков</p><p className="hud-num text-[10px]">{data.meta.periodStart} — {data.meta.periodEnd}</p></div></div>
       <form className="relative flex min-w-0 flex-1 gap-1 sm:max-w-sm" onSubmit={e=>{e.preventDefault();search()}}>
         <Input aria-label="Поиск по GID" aria-invalid={!!searchError} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Найти GID · 18 цифр" className="hud-num h-9 text-xs" inputMode="numeric"/>
         <Button size="icon" variant="outline" type="submit" aria-label="Найти узел"><Search/></Button>
         {searchError&&<p role="alert" className="absolute top-full z-20 border border-destructive bg-background p-2 text-xs text-destructive">{searchError}</p>}
       </form>
-      <div className="flex gap-2"><Button size="sm" variant="outline" onClick={()=>{setError("");setPhase("idle")}}>Новый анализ</Button><Button size="sm" disabled={!review.length} onClick={download}><Download/>Экспорт · {review.length}</Button></div>
+      <div className="flex gap-2"><Button size="sm" variant="outline" onClick={()=>{setError("");setPhase("idle")}}>Новый анализ</Button><details className="relative"><summary className="cursor-pointer border border-border px-3 py-2 text-xs">Файлы расчёта</summary><div className="absolute right-0 top-full z-40 mt-2 w-60 space-y-2 border border-border bg-background p-3">{["nodes_roles.csv","clusters.csv","top_nodes.csv"].map(name=><Button key={name} size="sm" variant="ghost" className="w-full justify-start font-mono text-xs" onClick={async()=>{try{await downloadAnalysisCsv(run.id,name);toast.success("Файл скачан: "+name)}catch(e){toast.error(e instanceof Error?e.message:"Ошибка скачивания")}}}><Download/>{name}</Button>)}<p className="text-[10px] leading-5 text-dim">Оригинальные CSV пайплайна. Хранятся локально до часа или перезапуска сервера; максимум 4 расчёта.</p></div></details><Button size="sm" disabled={!review.length} onClick={download}><Download/>Экспорт · {review.length}</Button></div>
     </header>
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border pb-3 text-xs">
       {countItems.map(([label,value])=><span key={label} className="text-muted-foreground">{label} <CountUp to={value} className="ml-1 text-foreground"/></span>)}
@@ -110,8 +114,10 @@ export function MoneyGraphDashboard() {
     </div>
     <AnimatePresence mode="wait">
       <motion.div key={tab} role="tabpanel" id={"panel-"+tab} aria-labelledby={"tab-"+tab} initial={reduced?false:{opacity:0,y:6}} animate={{opacity:1,y:0}} exit={{opacity:0}} transition={{duration:reduced?0:duration.base,ease}}>
-        {tab==="explore"?<div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_310px] xl:grid-cols-[250px_minmax(0,1fr)_310px]">
-          <aside className="flex min-w-0 flex-col border border-border bg-panel lg:col-span-2 xl:col-span-1 xl:h-[calc(100dvh-240px)] xl:min-h-[520px]">
+        {tab==="explore"?<div className="grid items-start gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+          <aside className="flex min-w-0 flex-col border border-border bg-panel xl:sticky xl:top-4 xl:h-[calc(100dvh-220px)] xl:min-h-[520px]">
+            <Button variant="ghost" className="w-full justify-between xl:hidden" aria-expanded={queueOpen} onClick={()=>setQueueOpen(!queueOpen)}>Очередь проверки · {candidates.length}<span>{queueOpen?"Свернуть":"Показать"}</span></Button>
+            <div className={(queueOpen?"flex":"hidden xl:flex")+" min-h-0 flex-1 flex-col"}>
             <div className="space-y-3 border-b border-border p-3">
               <div className="flex items-center justify-between"><h2 className="hud-caps text-xs">Очередь проверки</h2><span className="hud-num text-xs text-sky">{candidates.length}</span></div>
               <div className="flex gap-1"><Button size="sm" variant={scope==="top"?"secondary":"ghost"} onClick={()=>{setScope("top");setLimit(100)}}>Топ {data.topNodes.length}</Button><Button size="sm" variant={scope==="all"?"secondary":"ghost"} onClick={()=>{setScope("all");setLimit(100)}}>Вся сеть</Button></div>
@@ -131,15 +137,20 @@ export function MoneyGraphDashboard() {
               </div>)}
               {candidates.length>limit&&<Button variant="ghost" className="w-full" onClick={()=>setLimit(limit+100)}>Показать ещё {Math.min(100,candidates.length-limit)}</Button>}
             </div>
+            </div>
           </aside>
-          <div className="min-w-0 border border-border bg-panel xl:h-[calc(100dvh-240px)] xl:min-h-[520px]">
-            <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs"><span className="hud-caps text-sky">{cluster===null?"Вся сеть":"Кластер "+cluster} / <span className="hud-num text-foreground">…{gid.slice(-8)}</span></span>{cluster!==null&&<Button variant="ghost" size="icon-sm" aria-label="Сбросить кластер" onClick={()=>setCluster(null)}><X/></Button>}<RoleBadge role={selected.role}/></div>
-            <div className="h-[calc(100%-45px)]"><FlowExplorer key={gid+mode} data={data} gid={gid} mode={mode} onMode={setMode} onNode={openNode} onCluster={openCluster} cluster={cluster}
+          <div className="min-w-0 border border-border bg-panel">
+            {mode!=="clusters"&&<>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4"><div className="flex flex-wrap items-center gap-3"><span className="hud-num text-sm">{gid}</span><RoleBadge role={selected.role}/><span className="text-xs text-muted-foreground">Приоритет <span className="hud-num text-sky">{score(selected.priority_score)}</span></span></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={()=>setInspector(true)}><PanelRightOpen/>Справка</Button><ReviewButton gid={gid} included={review.includes(gid)} onToggle={toggle}/></div></div>
+            <div className="flex items-start gap-3 border-b border-border px-5 py-3 text-xs leading-6"><span className="text-muted-foreground">{selected.evidence}</span>{cluster!==null&&<Button variant="ghost" size="sm" aria-label="Сбросить кластер" onClick={()=>setCluster(null)}>Кластер {cluster}<X/></Button>}</div>
+            </>}
+            <div><FlowExplorer key={gid+mode} data={data} gid={gid} mode={mode} onMode={setMode} onNode={openNode} onCluster={openCluster} cluster={cluster}
               onBack={history.length?()=>{setGid(history.at(-1)!);setHistory(previous=>previous.slice(0,-1))}:undefined}/></div>
           </div>
-          <NodeInspector key={gid} node={selected} data={data} included={review.includes(gid)} onToggle={toggle} onPath={()=>setMode("path")}/>
-        </div>:tab==="signals"?<AnalysisInsights data={data} onNode={openNode}/>:<ReviewList graph={data} run={run} nodes={review.map(id=>nodesById.get(id)!).filter(Boolean)} onRemove={toggle} onNode={openNode}/>}
+          <Sheet modal={false} open={inspector} onOpenChange={setInspector}><SheetContent className="analyst-workspace overflow-y-auto sm:max-w-md"><SheetHeader><SheetTitle>Справка по клиенту</SheetTitle><SheetDescription>Факты, сигналы и ограничения наблюдения</SheetDescription></SheetHeader><NodeInspector key={gid} node={selected} data={data} included={review.includes(gid)} onToggle={toggle} onPath={()=>{setMode("path");setInspector(false)}}/></SheetContent></Sheet>
+        </div>:tab==="signals"?<AnalysisInsights data={data} onNode={openNode}/>:tab==="review"?<ReviewList graph={data} run={run} nodes={review.map(id=>nodesById.get(id)!).filter(Boolean)} onRemove={toggle} onNode={openNode}/>:null}
       </motion.div>
     </AnimatePresence>
+    <GraphAssistant key={run.id} runId={run.id} gid={gid} review={review} onNode={openNode} onOpen={()=>setInspector(false)}/>
   </section>
 }

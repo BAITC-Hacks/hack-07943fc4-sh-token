@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .diagnostics import node_signals
+from .routes import route_patterns
 
 ROLES = {
     "consolidator",
@@ -557,6 +558,7 @@ def write_dashboard_json(
         "edges": edge_records,
         "clusters": cluster_records,
         "topNodes": top_records,
+        "patterns": route_patterns(transactions),
     }
     out_path.write_text(
         json.dumps(

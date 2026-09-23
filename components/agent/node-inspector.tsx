@@ -12,7 +12,7 @@ export function NodeInspector({ node, data, included, onToggle, onPath }: {
   const cluster = data.clusters.find(c => c.cluster_id === node.cluster_id)
   const s = node.signals
   const ratio = node.in_kzt > 0 && !node.is_seed ? node.out_kzt / node.in_kzt : null
-  return <aside className="min-w-0 overflow-auto border border-border bg-panel xl:max-h-[max(520px,calc(100dvh-240px))]" aria-label="Карточка выбранного узла">
+  return <aside className="min-w-0 border border-border bg-panel" aria-label="Карточка выбранного узла">
     <div className="sticky top-0 z-10 space-y-3 border-b border-border bg-background p-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><span className="hud-caps text-[11px] text-sky">Выбранный клиент</span><span className="hud-tag">{node.is_seed ? "Исходный / seed" : "Не seed"}</span></div>
       <div className="flex items-center justify-between gap-3"><h2 className="hud-num text-xs">{node.gid}</h2><Button size="icon-sm" variant="ghost" aria-label="Скопировать GID" onClick={async()=>{try{await navigator.clipboard.writeText(node.gid);toast.success("GID скопирован")}catch{toast.error("Не удалось скопировать GID")}}}><Copy className="size-3" /></Button></div>

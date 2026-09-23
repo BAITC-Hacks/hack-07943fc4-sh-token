@@ -1,123 +1,122 @@
 import * as React from "react"
-import { ArrowLeft, Layers, Pause, Play, Route } from "lucide-react"
+import { ArrowLeft, ArrowRight, Layers, Pause, Play, Route, Users } from "lucide-react"
 import { useReducedMotion } from "motion/react"
 import { Button } from "@/components/ui/button"
-import type { MoneyGraphData, MoneyEdge } from "@/lib/graph-types"
+import type { MoneyGraphData, MoneyNode } from "@/lib/graph-types"
 import { seedPath } from "@/lib/graph-investigation"
 import { getClusterFlows } from "@/lib/cluster-flows"
 import { duration } from "@/lib/motion"
-import { money, ROLE_LABELS, roleStroke } from "./graph-presentation"
+import { money, ROLE_LABELS, roleBar, RoleBadge } from "./graph-presentation"
 
 export type GraphMode = "flows" | "path" | "clusters"
-type Point = { x: number; y: number }
+type LaneItem = { id: string; label: string; detail: string; amount: number; count: number; node?: MoneyNode }
+const PAGE_SIZE = 4
 
 export function FlowExplorer({ data, gid, mode, onMode, onNode, onCluster, onBack, cluster }: {
   data: MoneyGraphData; gid: string; mode: GraphMode; onMode: (mode: GraphMode) => void
   onNode: (gid: string) => void; onCluster: (id: number) => void; onBack?: () => void; cluster: number | null
 }) {
-  const reduced = useReducedMotion()
   const [animate, setAnimate] = React.useState(true)
-  const [edge, setEdge] = React.useState<MoneyEdge | null>(null)
-  const marker = React.useId().replaceAll(":", "")
-  const nodes = React.useMemo(() => new Map(data.nodes.map(node => [node.gid, node])), [data])
-  const path = React.useMemo(() => seedPath(data, gid), [data, gid])
-  const selected = nodes.get(gid)
-  const incoming = data.edges.filter(e => e.dst === gid && e.src !== gid).sort((a,b) => b.sum_kzt-a.sum_kzt)
-  const outgoing = data.edges.filter(e => e.src === gid && e.dst !== gid).sort((a,b) => b.sum_kzt-a.sum_kzt)
-  const positions = new Map<string, Point>()
-  let shown: MoneyEdge[] = []
-  if (mode === "path") {
-    path.forEach((id,i) => positions.set(id, { x: path.length === 1 ? 350 : 70 + i * 560 / (path.length - 1), y: 190 }))
-    shown = path.slice(1).flatMap((id,i) => data.edges.filter(e => e.src === path[i] && e.dst === id))
-  } else {
-    positions.set(gid, { x: 350, y: 190 })
-    const left = [...new Set(incoming.slice(0,5).map(e => e.src))]
-    const right = [...new Set(outgoing.slice(0,5).map(e => e.dst))]
-    left.forEach((id,i) => positions.set(id, { x: 155, y: 190 + (i - (left.length-1)/2) * 70 }))
-    right.forEach((id,i) => { if (!positions.has(id)) positions.set(id, { x: 545, y: 190 + (i - (right.length-1)/2) * 70 }) })
-    shown = [...incoming, ...outgoing].filter(e => positions.has(e.src) && positions.has(e.dst))
-  }
-  const all = incoming.length + outgoing.length + data.edges.filter(e => e.src === gid && e.dst === gid).length
-  const maxAmount = Math.max(1, ...shown.map(e => e.sum_kzt))
-  return <div className="flex h-full min-h-[440px] flex-col">
-    <div className="flex flex-wrap items-center gap-1 border-b border-border p-2">
+  const nodes = React.useMemo(() => new Map(data.nodes.map(n => [n.gid, n])), [data])
+  const selected = nodes.get(gid)!
+  const incoming = data.edges.filter(e => e.dst === gid && e.src !== gid).map(e => ({ id: e.src, label: e.src, detail: ROLE_LABELS[nodes.get(e.src)!.role], amount: e.sum_kzt, count: e.n_tx, node: nodes.get(e.src) }))
+  const outgoing = data.edges.filter(e => e.src === gid && e.dst !== gid).map(e => ({ id: e.dst, label: e.dst, detail: ROLE_LABELS[nodes.get(e.dst)!.role], amount: e.sum_kzt, count: e.n_tx, node: nodes.get(e.dst) }))
+  const self = data.edges.find(e => e.src === gid && e.dst === gid)
+  return <div className="flow-explorer flex min-w-0 flex-col bg-background/80">
+    <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
       {onBack && <Button size="icon-sm" variant="ghost" aria-label="Предыдущий узел" onClick={onBack}><ArrowLeft /></Button>}
-      {([["flows","Потоки узла"],["path","Путь от seed"],["clusters","Сеть кластеров"]] as const).map(([id,label]) =>
-        <Button key={id} size="sm" variant={mode === id ? "secondary" : "ghost"} aria-pressed={mode === id} onClick={() => onMode(id)}>{id === "path" ? <Route /> : id === "clusters" ? <Layers /> : null}{label}</Button>)}
+      {([["flows", "Денежные потоки"], ["path", "Путь от источника"], ["clusters", "Между кластерами"]] as const).map(([id, label]) =>
+        <Button key={id} size="sm" variant={mode === id ? "secondary" : "ghost"} aria-pressed={mode === id} onClick={() => onMode(id)}>{id === "path" ? <Route /> : id === "clusters" ? <Layers /> : <ArrowRight />}{label}</Button>)}
       <Button className="ml-auto" size="icon-sm" variant="ghost" aria-label={animate ? "Остановить анимацию потоков" : "Включить анимацию потоков"} onClick={() => setAnimate(!animate)}>{animate ? <Pause /> : <Play />}</Button>
     </div>
-    {mode === "clusters" ? <ClusterMap data={data} selected={cluster} onCluster={onCluster} /> : <>
-      <div className="flex flex-wrap justify-between gap-x-4 gap-y-2 px-4 py-3 text-xs text-muted-foreground">
-        <span>{mode === "flows" ? "Входящие → клиент → исходящие" : "Кратчайший наблюдаемый путь"}</span>
-        <span className="hud-num whitespace-nowrap">{mode === "flows" ? shown.length + " / " + all + " связей" : path.length ? "Переходов: " + (path.length-1) : "Путь не найден"}</span>
-      </div>
-      <div className="hud-blueprint relative flex min-h-[260px] flex-1 items-center">
-        {mode === "path" && !path.length ? <p className="m-auto max-w-sm p-6 text-sm text-muted-foreground">Направленного пути от исходных клиентов в этой выборке нет. Проверьте полноту данных.</p> :
-          <svg viewBox="0 0 700 380" className="absolute inset-0 h-full w-full" role="group" aria-label={mode === "path" ? "Маршрут от исходного клиента" : "Входящие и исходящие денежные потоки"}>
-            <defs><marker id={marker} markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L0,10 L10,5 z" className="fill-sky" /></marker></defs>
-            {shown.map(e => {
-              const from = positions.get(e.src)!, to = positions.get(e.dst)!
-              const dx = to.x-from.x, dy = to.y-from.y, length = Math.hypot(dx,dy) || 1
-              const offset = shown.some(other => other.src === e.dst && other.dst === e.src) ? 14 : 0
-              const x1 = from.x+dx/length*25, y1=from.y+dy/length*25
-              const x2=to.x-dx/length*30, y2=to.y-dy/length*30
-              const d = "M"+x1+","+y1+" Q"+((x1+x2)/2-dy/length*offset)+","+((y1+y2)/2+dx/length*offset)+" "+x2+","+y2
-              const selectedEdge = edge?.src === e.src && edge.dst === e.dst
-              return <g key={e.src+":"+e.dst}>
-                <path d={d} className={selectedEdge ? "fill-none stroke-primary" : "fill-none stroke-sky/50"} strokeWidth={1+3*Math.sqrt(e.sum_kzt/maxAmount)} markerEnd={"url(#"+marker+")"} />
-                {animate && !reduced && <circle r="2.5" className="fill-sky" pointerEvents="none"><animateMotion dur={duration.boot*6+"s"} repeatCount="indefinite" path={d} /></circle>}
-                <path d={d} stroke="transparent" strokeWidth="16" fill="none" className="cursor-pointer" tabIndex={0} role="button"
-                  aria-label={e.src+" → "+e.dst+": "+money.format(e.sum_kzt)+" тенге"} onClick={() => setEdge(e)}
-                  onKeyDown={event => { if (event.key === "Enter") setEdge(e) }}><title>{money.format(e.sum_kzt)} ₸ · {e.n_tx} переводов</title></path>
-              </g>
-            })}
-            {[...positions].map(([id,p]) => {
-              const node = nodes.get(id)!
-              const side = mode === "flows" && id !== gid
-              const labelX = side ? p.x + (p.x < 350 ? -32 : 32) : p.x
-              const anchor = side ? (p.x < 350 ? "end" : "start") : "middle"
-              return <g key={id} role="button" tabIndex={0} aria-label={"Открыть узел "+id} className="cursor-pointer outline-none"
-                onClick={() => { setEdge(null); onNode(id) }} onKeyDown={event => { if (["Enter"," "].includes(event.key)) { event.preventDefault(); setEdge(null); onNode(id) } }}>
-                <title>{id+" · "+ROLE_LABELS[node.role]}</title>
-                <rect x={p.x-44} y={p.y-28} width="88" height="90" fill="transparent" pointerEvents="all" />
-                {node.is_seed && <circle cx={p.x} cy={p.y} r={id === gid ? 31 : 23} className="fill-none stroke-warning" />}
-                <circle cx={p.x} cy={p.y} r={id === gid ? 25 : 17} className={"fill-panel "+roleStroke(node.role)} strokeWidth={id === gid ? 3 : 2} />
-                {id === gid && <circle cx={p.x} cy={p.y} r="5" className="fill-primary" />}
-                <text x={labelX} y={p.y+(side ? 0 : 43)} textAnchor={anchor} className="fill-foreground font-mono text-[13px]">…{id.slice(-7)}</text>
-                <text x={labelX} y={p.y+(side ? 18 : 63)} textAnchor={anchor} className="fill-muted-foreground text-xs">{ROLE_LABELS[node.role]}</text>
-              </g>
-            })}
-          </svg>}
-      </div>
-      <div className="min-h-16 border-t border-border px-4 py-3 text-xs">
-        <p className="mb-1 text-[10px] text-dim">Цвет — роль · кольцо — seed · движение — направление, не онлайн-операции</p>
-        {edge && shown.some(e => e.src === edge.src && e.dst === edge.dst) ? <><p className="hud-num break-all text-sky">{edge.src} → {edge.dst}</p><p className="mt-1">{money.format(edge.sum_kzt)} ₸ · {edge.n_tx} переводов за период</p></> :
-          <p className="leading-5 text-muted-foreground">{mode === "path" ? (selected?.is_seed ? "Это исходный клиент. Выберите связанный узел, чтобы проследить путь." : "Путь подтверждает связи в выборке. Он не доказывает движение одних и тех же средств.") : "Нажмите узел для перехода, стрелку — для суммы. До 5 крупнейших входящих и исходящих контрагентов; встречные потоки показаны отдельно."}</p>}
-      </div>
-    </>}
+    {mode === "clusters" ? <ClusterMap data={data} initial={cluster ?? selected.cluster_id} onCluster={onCluster} animate={animate} /> : mode === "path" ?
+      <PathMap data={data} gid={gid} onNode={onNode} /> : <>
+        <FlowBoard key={gid} incoming={incoming} outgoing={outgoing} onSelect={onNode} animate={animate}
+          leftTitle="От кого получает" rightTitle="Кому переводит" center={<div className="flow-focus w-full space-y-4 border border-line-strong bg-panel p-5">
+            <p className="hud-caps text-[11px] text-sky">Выбранный клиент</p>
+            <div><p className="hud-num whitespace-nowrap text-xs tracking-tight">{gid}</p><div className="mt-3 flex flex-wrap gap-2"><RoleBadge role={selected.role} />{selected.is_seed && <span className="hud-tag text-warning">Исходный</span>}</div></div>
+            <dl className="space-y-3 border-y border-border py-4"><div><dt className="text-xs text-muted-foreground">Получил за период</dt><dd className="hud-num mt-1 text-lg text-sky">{money.format(selected.in_kzt)} ₸</dd></div><div><dt className="text-xs text-muted-foreground">Перевёл за период</dt><dd className="hud-num mt-1 text-lg">{money.format(selected.out_kzt)} ₸</dd></div></dl>
+            <p className="text-xs leading-5 text-muted-foreground">{selected.truncated_by_depth ? "Граница выгрузки: продолжение потока неизвестно." : selected.is_seed ? "У исходного клиента входящие наблюдаются не полностью." : selected.in_kzt ? "Выход / вход: " + (selected.out_kzt / selected.in_kzt * 100).toFixed(1) + "%. Это не остаток на счёте." : "Входящие переводы в выборке не наблюдаются."}</p>
+          </div>} />
+        {self && <p className="px-5 pb-3 text-xs text-warning">Самопереводы: {money.format(self.sum_kzt)} ₸ · {self.n_tx} операций. В боковых потоках не показаны.</p>}
+      </>}
   </div>
 }
 
-function ClusterMap({data,selected,onCluster}:{data:MoneyGraphData;selected:number|null;onCluster:(id:number)=>void}) {
-  const marker = React.useId().replaceAll(":","")
-  const [page,setPage] = React.useState(0)
-  const ordered = [...data.clusters].sort((a,b)=>b.n_nodes-a.n_nodes)
-  const visible = ordered.slice(page*12,page*12+12)
-  const positions = new Map(visible.map((c,i)=>[c.cluster_id,{x:350+Math.cos(i*Math.PI*2/visible.length-Math.PI/2)*255,y:195+Math.sin(i*Math.PI*2/visible.length-Math.PI/2)*135}]))
-  const allFlows = getClusterFlows(data)
-  const pageFlows = allFlows.filter(f=>positions.has(f.src)&&positions.has(f.dst)).sort((a,b)=>b.sum_kzt-a.sum_kzt)
-  const flows = pageFlows.slice(0,24)
-  return <div className="flex flex-1 flex-col">
-    <div className="flex items-center justify-between px-3 pt-3 text-xs"><span className="text-muted-foreground">{visible.length} / {ordered.length} кластеров · {flows.length} / {pageFlows.length} направлений</span><div className="flex gap-1"><Button size="sm" variant="ghost" aria-label="Предыдущие кластеры" disabled={!page} onClick={()=>setPage(page-1)}>←</Button><Button size="sm" variant="ghost" aria-label="Следующие кластеры" disabled={(page+1)*12>=ordered.length} onClick={()=>setPage(page+1)}>→</Button></div></div>
-    <svg viewBox="0 0 700 400" className="hud-blueprint my-auto w-full" role="group" aria-label="Карта межкластерных потоков">
-      <defs><marker id={marker} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" className="fill-sky"/></marker></defs>
-      {flows.map(f=>{const a=positions.get(f.src)!,b=positions.get(f.dst)!,d=Math.hypot(b.x-a.x,b.y-a.y)||1,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;return <line key={f.src+":"+f.dst} x1={a.x+dx*24-dy*4} y1={a.y+dy*24+dx*4} x2={b.x-dx*30-dy*4} y2={b.y-dy*30+dx*4} className="stroke-sky/40" strokeWidth="1.5" markerEnd={"url(#"+marker+")"}><title>{f.src+" → "+f.dst+": "+money.format(f.sum_kzt)+" ₸"}</title></line>})}
-      {visible.map(c=>{const p=positions.get(c.cluster_id)!;return <g key={c.cluster_id} role="button" tabIndex={0} aria-label={"Исследовать кластер "+c.cluster_id} className="cursor-pointer" onClick={()=>onCluster(c.cluster_id)} onKeyDown={e=>{if(e.key==="Enter")onCluster(c.cluster_id)}}>
-        {c.n_seed>0&&<circle cx={p.x} cy={p.y} r="28" className="fill-none stroke-warning"/>}
-        <circle cx={p.x} cy={p.y} r="22" className={c.cluster_id===selected?"fill-panel stroke-primary":"fill-panel stroke-sky"} strokeWidth="2"/>
-        <text x={p.x} y={p.y+4} textAnchor="middle" className="fill-foreground font-mono text-xs">{c.cluster_id}</text><text x={p.x} y={p.y+44} textAnchor="middle" className="fill-muted-foreground text-[11px]">{c.n_nodes} узлов</text>
-      </g>})}
-    </svg>
-    <p className="border-t border-border p-3 text-xs leading-5 text-muted-foreground">Нажмите кластер: откроется его очередь и ведущий узел. Показаны до 24 крупнейших направлений на странице; связи с другими страницами скрыты. Кольцо — есть seed.</p>
+function FlowBoard({ incoming, outgoing, center, onSelect, animate, leftTitle, rightTitle }: {
+  incoming: LaneItem[]; outgoing: LaneItem[]; center: React.ReactNode; onSelect: (id: string) => void; animate: boolean; leftTitle: string; rightTitle: string
+}) {
+  const [leftPage, setLeftPage] = React.useState(0), [rightPage, setRightPage] = React.useState(0)
+  const [active, setActive] = React.useState<string | null>(null)
+  const sorted = (items: LaneItem[]) => [...items].sort((a,b) => b.amount-a.amount || a.id.localeCompare(b.id))
+  const left = sorted(incoming), right = sorted(outgoing)
+  const shownLeft = left.slice(leftPage*PAGE_SIZE, (leftPage+1)*PAGE_SIZE), shownRight = right.slice(rightPage*PAGE_SIZE, (rightPage+1)*PAGE_SIZE)
+  const sum = (items: LaneItem[]) => items.reduce((s, item) => s + item.amount, 0)
+  const maxAmount = Math.max(1, ...[...left, ...right].map(item => item.amount))
+  const height = Math.max(shownLeft.length, shownRight.length, 4) * 104 - 12
+  function heading(title: string, items: LaneItem[], page: number, setPage: (page: number) => void) {
+    return <div className="h-[72px] space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-medium">{title}</h3><span className="hud-num text-xs text-sky">{items.length}</span></div>
+      <p className="hud-num text-xs text-muted-foreground">{money.format(sum(items))} ₸</p>
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground"><span>{items.length ? `${page*PAGE_SIZE+1}–${Math.min((page+1)*PAGE_SIZE,items.length)} из ${items.length}` : "Нет наблюдаемых связей"}</span>
+        {items.length > PAGE_SIZE && <div className="flex gap-1"><Button size="icon-xs" variant="ghost" aria-label={"Предыдущие: " + title} disabled={!page} onClick={() => setPage(page-1)}><ArrowLeft /></Button><Button size="icon-xs" variant="ghost" aria-label={"Следующие: " + title} disabled={(page+1)*PAGE_SIZE>=items.length} onClick={() => setPage(page+1)}><ArrowRight /></Button></div>}
+      </div></div>
+  }
+  function cards(items: LaneItem[], all: LaneItem[], side: string) {
+    return <div className="space-y-3" style={{height}}>{!items.length && <div className="flex h-full items-center justify-center border border-dashed border-border p-4 text-center text-xs leading-6 text-muted-foreground">В этой выборке переводов нет.<br/>Это не подтверждает отсутствие операций вне неё.</div>}{items.map(item => <button key={item.id}
+      className={"flow-counterparty relative flex h-[92px] w-full flex-col justify-between border bg-panel px-3 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary " + (active === side+item.id ? "border-primary" : "border-border hover:border-line-strong")}
+      aria-label={"Открыть " + (item.node ? "узел " : "кластер ") + item.id} title={item.label}
+      onMouseEnter={() => setActive(side+item.id)} onMouseLeave={() => setActive(null)} onFocus={() => setActive(side+item.id)} onBlur={() => setActive(null)} onClick={() => onSelect(item.id)}>
+      <span className={"absolute inset-y-0 left-0 w-0.5 " + (item.node ? roleBar[item.node.role] : "bg-sky")} />
+      <span className="flex items-center justify-between gap-2"><span className="hud-num text-[11px]">{item.label}</span><ArrowRight className="size-3 shrink-0 text-muted-foreground" /></span>
+      <span className="flex items-center gap-2 text-[11px] text-muted-foreground">{item.detail}{item.node?.is_seed && <span className="text-warning">· seed</span>}</span>
+      <span className="flex items-end justify-between gap-2"><span className="hud-num text-sm text-sky">{money.format(item.amount)} ₸</span><span className="hud-num text-[11px] text-muted-foreground">{sum(all) ? (item.amount/sum(all)*100).toFixed(1) : "0"}%</span></span>
+      <span className="text-[11px] text-muted-foreground">Переводов за период: {item.count}</span>
+    </button>)}</div>
+  }
+  return <>
+    <div className="overflow-x-auto p-5"><div className="flow-board grid min-w-[780px] grid-cols-[minmax(0,1fr)_64px_minmax(190px,0.85fr)_64px_minmax(0,1fr)]">
+      <div>{heading(leftTitle,left,leftPage,setLeftPage)}{cards(shownLeft,left,"in")}</div>
+      <div className="pt-[72px]"><FlowWires items={shownLeft} height={height} inbound maxAmount={maxAmount} active={active} animate={animate} /></div>
+      <div className="flex flex-col"><p className="flex h-[72px] shrink-0 items-start justify-center pt-1 text-[11px] text-muted-foreground">НАПРАВЛЕНИЕ ДЕНЕГ →</p><div className="flex flex-1 items-center">{center}</div></div>
+      <div className="pt-[72px]"><FlowWires items={shownRight} height={height} inbound={false} maxAmount={maxAmount} active={active} animate={animate} /></div>
+      <div>{heading(rightTitle,right,rightPage,setRightPage)}{cards(shownRight,right,"out")}</div>
+    </div></div>
+    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-border px-5 py-3 text-[11px] leading-5 text-muted-foreground"><span>Толщина линии — сумма</span><span>% — доля этой стороны потока</span><span>Цвет карточки — роль</span><span>Клик — перейти к клиенту / кластеру</span><span>Движение — направление, не онлайн-операции</span></div>
+  </>
+}
+
+function FlowWires({items,height,inbound,maxAmount,active,animate}:{items:LaneItem[];height:number;inbound:boolean;maxAmount:number;active:string|null;animate:boolean}) {
+  const reduced = useReducedMotion(), marker = React.useId().replaceAll(":", "")
+  return <svg width="64" height={height} viewBox={`0 0 64 ${height}`} aria-hidden="true" className="overflow-visible"><defs><marker id={marker} markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8Z" className="fill-sky" /></marker></defs>
+    {items.map((item,i) => {
+      const row = i*104+46, middle = height/2+(i-(items.length-1)/2)*18
+      const from = inbound ? row : middle, to = inbound ? middle : row
+      const path = `M0 ${from} C32 ${from} 32 ${to} 61 ${to}`
+      const highlight = !active || active === (inbound ? "in" : "out")+item.id
+      return <g key={item.id} opacity={highlight ? 1 : 0.15}><path d={path} fill="none" className="stroke-sky/60" strokeWidth={1.5+4*Math.sqrt(item.amount/maxAmount)} markerEnd={`url(#${marker})`} />{animate && !reduced && <circle r="2" className="fill-foreground"><animateMotion path={path} dur={duration.boot*6+"s"} repeatCount="indefinite" /></circle>}</g>
+    })}
+  </svg>
+}
+
+function PathMap({data,gid,onNode}:{data:MoneyGraphData;gid:string;onNode:(gid:string)=>void}) {
+  const path = seedPath(data,gid)
+  return <div className="p-6"><div className="mb-8 space-y-2"><h3 className="text-lg">Как клиент связан с исходными участниками</h3><p className="max-w-2xl text-sm leading-6 text-muted-foreground">Один кратчайший путь по направлению переводов. Суммы — весь оборот каждого ребра за период, а не доказанная сквозная сумма.</p></div>
+    {!path.length ? <p className="border border-dashed border-border p-8 text-muted-foreground">Направленный путь в наблюдаемой сети не найден.</p> : <div className="flex items-center overflow-x-auto pb-6">{path.map((id,i) => {
+      const node=data.nodes.find(n=>n.gid===id)!, edge=i?data.edges.find(e=>e.src===path[i-1]&&e.dst===id):null
+      return <React.Fragment key={id}>{edge&&<div className="w-36 shrink-0 px-3 text-center"><p className="hud-num text-xs text-sky">{money.format(edge.sum_kzt)} ₸</p><ArrowRight className="my-3 h-5 w-full text-sky"/><p className="text-xs text-muted-foreground">{edge.n_tx} переводов</p></div>}<button className={"w-56 shrink-0 space-y-4 border bg-panel p-5 text-left hover:border-primary " + (id===gid?"border-primary":"border-border")} onClick={()=>onNode(id)}><span className="hud-caps text-[11px] text-sky">{i===0?"Исходный клиент":i===path.length-1?"Выбранный клиент":"Шаг "+i}</span><span className="hud-num block text-xs">{id}</span><RoleBadge role={node.role}/><span className="block text-xs text-muted-foreground">Колено {node.depth} · кластер {node.cluster_id}</span></button></React.Fragment>
+    })}</div>}
+    {path.length===1&&<p className="text-sm text-warning">Выбранный клиент сам является исходным. Перейдите к его получателю, чтобы увидеть продолжение.</p>}
   </div>
+}
+
+function ClusterMap({data,initial,onCluster,animate}:{data:MoneyGraphData;initial:number;onCluster:(id:number)=>void;animate:boolean}) {
+  const [focus,setFocus]=React.useState(initial)
+  const flows=React.useMemo(()=>getClusterFlows(data),[data])
+  const cluster=data.clusters.find(c=>c.cluster_id===focus)!
+  const item=(id:number,amount:number,count:number):LaneItem=>({id:String(id),label:"Кластер "+id,detail:(data.clusters.find(c=>c.cluster_id===id)?.n_nodes??0)+" клиентов",amount,count})
+  const incoming=flows.filter(f=>f.dst===focus).map(f=>item(f.src,f.sum_kzt,f.n_tx))
+  const outgoing=flows.filter(f=>f.src===focus).map(f=>item(f.dst,f.sum_kzt,f.n_tx))
+  return <><div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3"><p className="text-xs text-muted-foreground">Выберите кластер и проследите его обмен с другими</p><select aria-label="Кластер на карте потоков" value={focus} onChange={e=>setFocus(Number(e.target.value))} className="border border-border bg-background p-2 text-xs">{data.clusters.map(c=><option key={c.cluster_id} value={c.cluster_id}>Кластер {c.cluster_id} · {c.n_nodes} клиентов</option>)}</select></div>
+    <FlowBoard key={focus} incoming={incoming} outgoing={outgoing} onSelect={id=>setFocus(Number(id))} animate={animate} leftTitle="Деньги из кластеров" rightTitle="Деньги в кластеры" center={<div className="w-full space-y-4 border border-sky/40 bg-panel p-5"><Layers className="size-6 text-sky"/><h3 className="text-xl">Кластер {focus}</h3><p className="text-sm">{cluster.n_nodes} клиентов · {cluster.n_seed} исходных</p><div className="border-y border-border py-3"><p className="text-xs text-muted-foreground">Внутренние переводы</p><p className="hud-num mt-2 text-lg text-sky">{money.format(cluster.sum_kzt_internal)} ₸</p></div><p className="text-xs leading-5 text-muted-foreground">{cluster.hypothesis}</p><Button size="sm" variant="outline" className="w-full" onClick={()=>onCluster(focus)}><Users/>Открыть клиентов</Button></div>}/>
+  </>
 }
