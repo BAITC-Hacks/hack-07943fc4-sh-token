@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
-    "test:ui": "node --experimental-strip-types --test tests/graph-data.test.mjs tests/analysis-flow.test.mjs",
+    "test:ui": "node --experimental-strip-types --test tests/graph-data.test.mjs tests/analysis-flow.test.mjs tests/graph-investigation.test.mjs",
     "test:api": "node --test tests/analysis-api.test.mjs",
     "analyze": "uv --cache-dir pipeline/.uv-cache run --project pipeline --locked python pipeline/main.py --data data --out out --web public/data",
     "test:pipeline": "uv --cache-dir pipeline/.uv-cache run --project pipeline --locked pytest pipeline/tests -q"

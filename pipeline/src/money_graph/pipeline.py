@@ -10,6 +10,8 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
+from .diagnostics import node_signals
+
 ROLES = {
     "consolidator",
     "transit",
@@ -526,8 +528,10 @@ def write_dashboard_json(
     edge_records = edges[["src", "dst", "sum_kzt", "n_tx", "depth"]].to_dict(orient="records")
     cluster_records = clusters.to_dict(orient="records")
     top_records = top_nodes.to_dict(orient="records")
+    signals = node_signals(frame, transactions)
 
     for record in node_records:
+        record["signals"] = signals[int(record["gid"])]
         record["gid"] = str(record["gid"])
     for record in edge_records:
         record["src"] = str(record["src"])

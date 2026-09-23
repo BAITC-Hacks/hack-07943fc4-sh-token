@@ -7,6 +7,18 @@ export type MoneyRole =
   | "peripheral"
 
 export type MoneyNode = {
+  signals?: {
+    peak_day: string | null
+    peak_day_tx: number
+    daily_average_tx: number
+    activity_spike: boolean
+    synchronous_payers: number
+    synchronous_day: string | null
+    near_threshold_max_daily: number
+    turnover_outlier: boolean
+    depth_turnover_upper_fence: number
+    depth_peer_count: number
+  }
   gid: string
   role: MoneyRole
   role_score: number

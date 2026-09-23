@@ -1,73 +1,72 @@
 import * as React from "react"
-import { Database, LoaderCircle, Upload } from "lucide-react"
+import { ArrowRight, Check, Database, LoaderCircle, Upload } from "lucide-react"
 import { DecodeText } from "@/components/hud/hud-motion"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent } from "@/components/ui/card"
 import { MAX_FILE_BYTES, PARQUET_FILES } from "@/lib/analysis-contract"
 import type { AnalysisSource } from "@/lib/graph-types"
 
 export function AnalysisInput({ busy, error, reviewCount, onRun, onBack }: {
-  busy: boolean
-  error: string
-  reviewCount: number
-  onRun: (source: AnalysisSource, files?: File[]) => void
-  onBack?: () => void
+  busy: boolean; error: string; reviewCount: number
+  onRun: (source: AnalysisSource, files?: File[]) => void; onBack?: () => void
 }) {
   const [files, setFiles] = React.useState<Record<string, File>>({})
+  const [upload, setUpload] = React.useState(false)
+  const [issue, setIssue] = React.useState("")
   const [consent, setConsent] = React.useState(false)
-  const issues = PARQUET_FILES.flatMap((name) => {
-    const file = files[name]
-    if (!file) return []
-    if (file.name !== name) return [`Для ${name} выбран ${file.name}. Выберите правильный файл.`]
-    if (file.size === 0 || file.size > MAX_FILE_BYTES) return [`${name}: нужен непустой файл до 25 МиБ.`]
-    return []
-  })
-  const ready = PARQUET_FILES.every((name) => files[name]) && !issues.length
+  const [dragging, setDragging] = React.useState(false)
+  const input = React.useRef<HTMLInputElement>(null)
+  const ready = !issue && PARQUET_FILES.every((name) => files[name])
   const canReplace = !reviewCount || consent
-  return <section className="mx-auto max-w-5xl space-y-4 py-6" aria-busy={busy}>
-    <header className="space-y-3">
-      <p className="hud-caps text-xs text-sky">AML / от исходных GID к списку проверки</p>
-      <DecodeText as="h1" text="ГРАФ ДЕНЕГ" className="hud-caps text-[32px] md:text-5xl" />
-      <p className="max-w-3xl text-sm leading-6 text-muted-foreground">Исходные GID от правоохранительных органов отмечены признаком seed в nodes.parquet. Загрузите выгрузку исходящих переводов на четыре колена: сервер рассчитает граф, роли-гипотезы и приоритеты.</p>
-      <p className="hud-num text-xs text-dim">Parquet → Python → потоки и кластеры → кандидаты → ваш список → CSV</p>
+  function accept(list: File[]) {
+    const next = { ...files }
+    const issues: string[] = []
+    for (const file of list) {
+      if (!PARQUET_FILES.includes(file.name as typeof PARQUET_FILES[number])) { issues.push("Неизвестный файл: " + file.name); continue }
+      if (!file.size || file.size > MAX_FILE_BYTES) { issues.push(file.name + ": нужен непустой файл до 25 МиБ"); continue }
+      next[file.name] = file
+    }
+    setFiles(next); setIssue(issues.join(". "))
+  }
+  return <section className="mx-auto flex min-h-[85dvh] max-w-4xl flex-col justify-center gap-7 py-6" aria-busy={busy}>
+    <header className="space-y-4">
+      <div className="flex items-center gap-3"><span className="hud-tag text-sky"><span className="hud-dot" /> FINANCIAL INTELLIGENCE</span><span className="text-xs text-dim">Локальный анализ</span></div>
+      <DecodeText as="h1" text="STRATA" className="hud-caps text-6xl md:text-8xl" />
+      <p className="max-w-xl text-xl text-foreground">Раскройте структуру денежных потоков.</p>
+      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">От исходных клиентов — к обоснованному списку проверки. Проследите связи, изучите роли и выберите, кого проверять первым.</p>
     </header>
-    <Card data-agent={busy ? "working" : error ? "error" : undefined}>
-      <CardHeader><CardDescription className="hud-caps text-primary">01 / Входные данные</CardDescription><CardTitle>Загрузить выгрузку переводов</CardTitle></CardHeader>
-      <CardContent className="space-y-5">
-        <form onSubmit={(event) => { event.preventDefault(); if (ready && canReplace) onRun("upload", PARQUET_FILES.map((name) => files[name])) }} className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            {PARQUET_FILES.map((name) => <div key={name} className="min-w-0 space-y-2 border border-border bg-background p-3">
-              <label className="hud-num block text-xs text-foreground" htmlFor={`file-${name}`}>{name}</label>
-              <Input id={`file-${name}`} aria-label={name} type="file" accept=".parquet" disabled={busy}
-                className="h-auto w-full min-w-0 py-2 text-xs"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  setFiles((previous) => { const next = { ...previous }; if (file) next[name] = file; else delete next[name]; return next })
-                }} />
-              <p className="text-xs text-dim">{files[name] ? `${(files[name].size / 1024).toFixed(1)} КиБ` : "Файл не выбран"}</p>
-            </div>)}
-          </div>
-          <p className="text-xs leading-5 text-muted-foreground">Три файла одного комплекта, до 25 МиБ каждый. Число seed, период, суммы и роли будут прочитаны из ваших данных — не из примера.</p>
-          {issues.map((issue) => <p key={issue} role="alert" className="text-xs text-destructive">{issue}</p>)}
-          {reviewCount > 0 && <label className="flex items-start gap-3 border border-warning/40 p-3 text-xs text-warning">
-            <input type="checkbox" checked={consent} disabled={busy} onChange={(event) => setConsent(event.target.checked)} />
-            При успешном новом расчёте очистить текущий список проверки ({reviewCount}). Если он нужен, сначала вернитесь к результату и экспортируйте CSV.
-          </label>}
-          <Button type="submit" disabled={!ready || !canReplace || busy}><Upload />Рассчитать загруженные файлы</Button>
-        </form>
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-          <div className="max-w-xl space-y-1"><p className="text-sm text-foreground">Предзагруженный кейс организаторов</p><p className="text-xs leading-5 text-muted-foreground">Те же реальные data/*.parquet из репозитория. Кнопка запускает новый расчёт Python, а не открывает готовую картинку.</p></div>
-          <Button variant="outline" disabled={!canReplace || busy} onClick={() => onRun("organizers")}><Database />Рассчитать предзагруженный кейс</Button>
+    <Card data-agent={busy ? "working" : error ? "error" : "waiting"}>
+      <CardContent className="space-y-5 py-6">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Источник анализа">
+          <Button variant={!upload ? "secondary" : "ghost"} disabled={busy} aria-pressed={!upload} onClick={() => setUpload(false)}><Database />Кейс организаторов</Button>
+          <Button variant={upload ? "secondary" : "ghost"} disabled={busy} aria-pressed={upload} onClick={() => setUpload(true)}><Upload />Своя выгрузка</Button>
         </div>
-        {busy && <div role="status" className="space-y-3 border border-primary/40 bg-background p-4">
-          <p className="flex items-center gap-2 text-primary"><LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" />Передаём данные и ожидаем завершения Python-пайплайна</p>
-          <p className="text-xs leading-5 text-muted-foreground">Проверка parquet → признаки → кластеры → роли и приоритеты. Это план расчёта, не индикатор текущего этапа. Проценты готовности неизвестны; результат появится только после завершения процесса. Не закрывайте вкладку.</p>
-        </div>}
-        {error && <div role="alert" className="space-y-2 border border-destructive/50 p-4"><p className="text-sm text-destructive">{error}</p><p className="text-xs text-muted-foreground">Исправьте причину и снова нажмите кнопку расчёта. Файлы остались выбраны; тестовые результаты не подставляются.</p></div>}
-        <p className="text-xs leading-5 text-dim">Файлы обрабатываются локальным сервером и удаляются из временной папки после запроса. Внешние сервисы не используются. На четвёртом колене сеть обрезана; у seed входящий поток неполон. Роль — гипотеза, не обвинение.</p>
-        {onBack && !busy && <Button variant="ghost" onClick={onBack}>Вернуться к предыдущему результату</Button>}
+        {upload ? <div className="space-y-3 hud-reveal">
+          <input ref={input} type="file" multiple accept=".parquet" aria-label="Выбрать три parquet-файла" className="sr-only" disabled={busy}
+            onChange={(event) => { accept(Array.from(event.target.files ?? [])); event.target.value = "" }} />
+          <button type="button" disabled={busy} onClick={() => input.current?.click()}
+            onDragOver={(event) => { event.preventDefault(); if (!busy) setDragging(true) }} onDragLeave={() => setDragging(false)}
+            onDrop={(event) => { event.preventDefault(); setDragging(false); if (!busy) accept(Array.from(event.dataTransfer.files)) }}
+            className={"w-full border border-dashed p-6 text-center transition-colors " + (dragging ? "border-primary bg-primary/5" : "border-line-strong bg-background hover:border-primary")}>
+            <Upload className="mx-auto mb-3 size-5 text-primary" /><span className="text-sm">Перетащите три файла сюда или выберите их вместе</span>
+          </button>
+          <div className="flex flex-wrap gap-2">{PARQUET_FILES.map((name) => <span key={name} className={"hud-tag hud-num " + (files[name] ? "text-sky" : "text-dim")}>{files[name] && <Check className="size-3" />}{name}</span>)}</div>
+          <p className="text-xs text-dim">Один комплект · до 25 МиБ на файл · недостающие файлы можно добавить</p>
+          {issue && <p role="alert" className="text-xs text-destructive">{issue}</p>}
+        </div> : <div className="hud-reveal space-y-2"><h2 className="text-lg">Данные готовы к исследованию</h2><p className="max-w-xl text-sm leading-6 text-muted-foreground">Полная обезличенная выгрузка организаторов уже подключена. Одно действие запускает новый расчёт по исходным файлам.</p></div>}
+        {reviewCount > 0 && <label className="flex items-start gap-2 text-xs text-warning"><input type="checkbox" checked={consent} disabled={busy} onChange={(event) => setConsent(event.target.checked)} />Новый расчёт заменит текущий список ({reviewCount}). Список экспортирован или больше не нужен.</label>}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button size="lg" disabled={busy || !canReplace || (upload && !ready)} data-loading={busy || undefined}
+            onClick={() => onRun(upload ? "upload" : "organizers", upload ? PARQUET_FILES.map((name) => files[name]) : [])}>
+            {busy ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <ArrowRight />}{busy ? "Выполняется расчёт" : "Начать исследование"}
+          </Button>
+          {onBack && !busy && <Button variant="ghost" onClick={onBack}>Вернуться к результату</Button>}
+        </div>
+        {busy && <p role="status" className="hud-beam py-3 text-sm text-sky">Проверяем данные и рассчитываем сеть. Результат появится после завершения обработки.</p>}
+        {error && <div role="alert" className="border-l-2 border-destructive pl-3 text-sm text-destructive">{error}</div>}
       </CardContent>
     </Card>
+    <div className="grid gap-4 text-xs text-muted-foreground sm:grid-cols-3">{["01 / Проследить потоки", "02 / Понять приоритеты", "03 / Выбрать и выгрузить"].map((label) => <p key={label} className="hud-caps border-t border-border pt-3">{label}</p>)}</div>
+    <p className="text-xs text-dim">Файлы остаются на локальном сервере. Выводы — гипотезы для проверки по наблюдаемой сети.</p>
   </section>
 }

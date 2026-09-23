@@ -10,7 +10,7 @@ from .pipeline import load_data, run_pipeline, validate_outputs
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="ORION: explainable transaction-graph analysis"
+        description="STRATA: explainable transaction-graph analysis"
     )
     parser.add_argument("--data", type=Path, default=Path("data"))
     parser.add_argument("--out", type=Path, default=Path("out"))
@@ -66,7 +66,7 @@ def main() -> None:
             encoding="utf-8",
         )
 
-    print("\nORION MONEY GRAPH — ГОТОВО")
+    print("\nSTRATA MONEY GRAPH — ГОТОВО")
     print(f"  узлов                 : {summary['nodes']}")
     print(f"  кластеров             : {summary['clusters']}")
     print(f"  строк в топ-листе     : {summary['top_nodes']}")
