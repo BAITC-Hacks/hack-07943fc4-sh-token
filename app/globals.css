@@ -1,0 +1,676 @@
+/* =====================================================================
+   ORION HUD v2 — тема shadcn/ui (Tailwind v4)
+   Графит · сигнальный оранжевый · небесный. Только тёмная тема.
+   Работает со штатными компонентами shadcn «как есть» (через data-slot /
+   data-variant / data-state), плюс HUD-утилиты и система состояний агента.
+
+   Шрифты (app/layout.tsx, next/font/google):
+     Tektur        → variable "--font-tektur"
+     Martian_Mono  → variable "--font-martian-mono"
+   <html lang="ru" className={`dark ${tektur.variable} ${martian.variable}`}>
+   ===================================================================== */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant agent-working (&[data-agent="working"], [data-agent="working"] &);
+@custom-variant agent-done (&[data-agent="done"], [data-agent="done"] &);
+@custom-variant agent-error (&[data-agent="error"], [data-agent="error"] &);
+@custom-variant agent-waiting (&[data-agent="waiting"], [data-agent="waiting"] &);
+
+@property --hud-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+
+/* ---------- 1. Токены ---------- */
+:root,
+.dark {
+  color-scheme: dark;
+  --radius: 0px;
+
+  --background: #0a0b0d;
+  --foreground: #ece8e1;
+  --card: rgba(22, 24, 28, 0.82);
+  --card-foreground: #ece8e1;
+  --popover: #15171b;
+  --popover-foreground: #ece8e1;
+  --primary: #ff7a2f;
+  --primary-foreground: #170a03;
+  --secondary: #1d2025;
+  --secondary-foreground: #ece8e1;
+  --muted: #16181c;
+  --muted-foreground: #8e9097;
+  --accent: rgba(255, 122, 47, 0.12);
+  --accent-foreground: #ffd2b0;
+  --destructive: #ff4a3d;
+  --border: rgba(200, 204, 212, 0.12);
+  --input: rgba(200, 204, 212, 0.2);
+  --ring: #ff7a2f;
+  --chart-1: #ff7a2f;
+  --chart-2: #8ec9ff;
+  --chart-3: #ffc24b;
+  --chart-4: #d6d9de;
+  --chart-5: #ff4a3d;
+  --sidebar: #0e0f12;
+  --sidebar-foreground: #ece8e1;
+  --sidebar-primary: #ff7a2f;
+  --sidebar-primary-foreground: #170a03;
+  --sidebar-accent: rgba(255, 122, 47, 0.1);
+  --sidebar-accent-foreground: #ece8e1;
+  --sidebar-border: rgba(200, 204, 212, 0.12);
+  --sidebar-ring: #ff7a2f;
+
+  /* HUD-палитра */
+  --sky: #8ec9ff;
+  --sky-foreground: #07121d;
+  --warning: #ffc24b;
+  --warning-foreground: #1a1203;
+  --success: #8ec9ff;
+  --panel: rgba(22, 24, 28, 0.8);
+  --panel-strong: rgba(34, 37, 43, 0.92);
+  --line-strong: rgba(200, 204, 212, 0.3);
+  --text-dim: #585b62;
+  --glow-primary: 0 0 18px -4px rgba(255, 122, 47, 0.55);
+  --glow-primary-strong: 0 0 28px -4px rgba(255, 122, 47, 0.8);
+  --glow-sky: 0 0 18px -4px rgba(142, 201, 255, 0.5);
+  --glow-danger: 0 0 18px -4px rgba(255, 74, 61, 0.6);
+
+  /* Моушн-токены (те же, что в галерее) */
+  --ease-hud: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-hud-inout: cubic-bezier(0.7, 0, 0.3, 1);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 450ms;
+  --dur-boot: 700ms;
+  --stagger: 90ms;
+
+  --bracket: 12px;
+  --bracket-hover: 24px;
+}
+
+/* ---------- 2. Мост в Tailwind ---------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-sky: var(--sky);
+  --color-sky-foreground: var(--sky-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-success: var(--success);
+  --color-panel: var(--panel);
+  --color-panel-strong: var(--panel-strong);
+  --color-line-strong: var(--line-strong);
+  --color-dim: var(--text-dim);
+
+  --font-sans: var(--font-tektur), "Tektur", "Exo 2", system-ui, sans-serif;
+  --font-mono: var(--font-martian-mono), "Martian Mono", ui-monospace, Menlo, monospace;
+  --font-heading: var(--font-tektur), "Tektur", system-ui, sans-serif;
+
+  --radius-xs: 0px; --radius-sm: 0px; --radius-md: 0px; --radius-lg: 0px;
+  --radius-xl: 0px; --radius-2xl: 0px; --radius-3xl: 0px; --radius-4xl: 0px;
+
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: 0 12px 32px -12px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 20px 48px -16px rgba(0, 0, 0, 0.8);
+  --shadow-glow: var(--glow-primary);
+  --shadow-glow-strong: var(--glow-primary-strong);
+  --shadow-glow-sky: var(--glow-sky);
+  --shadow-glow-danger: var(--glow-danger);
+
+  --ease-hud: var(--ease-hud);
+  --ease-hud-inout: var(--ease-hud-inout);
+
+  --animate-hud-in: hud-in 0.7s var(--ease-hud) both;
+  --animate-hud-reveal: hud-reveal-x 0.55s var(--ease-hud) both;
+  --animate-hud-drop: hud-reveal-y 0.35s var(--ease-hud) both;
+  --animate-hud-pop: hud-pop 0.3s var(--ease-hud) both;
+  --animate-hud-row: hud-row-in 0.45s var(--ease-hud) both;
+  --animate-hud-scan: hud-scan 9s linear infinite;
+  --animate-hud-ping: hud-ping 1.8s var(--ease-hud) infinite;
+  --animate-hud-blink: hud-blink 0.8s steps(2) infinite;
+  --animate-hud-glitch: hud-glitch 0.6s steps(6) 2;
+  --animate-hud-shake: hud-shake 0.4s var(--ease-hud) 1;
+  --animate-hud-spin: spin 1.2s var(--ease-hud) infinite;
+  --animate-hud-orbit: spin 30s linear infinite;
+  --animate-hud-flash-up: hud-flash-up 0.6s var(--ease-hud) 1;
+  --animate-hud-flash-down: hud-flash-down 0.6s var(--ease-hud) 1;
+  --animate-hud-draw: hud-draw 1.2s var(--ease-hud) both;
+  --animate-hud-beam: hud-beam-spin 2.4s linear infinite;
+  --animate-pulse: hud-shimmer 1.6s linear infinite; /* скелетоны: блик вместо мигания */
+}
+
+/* ---------- 3. Ключевые кадры ---------- */
+@keyframes hud-in {
+  0% { opacity: 0; transform: translateY(8px) scaleY(0.97); filter: blur(8px); }
+  55% { opacity: 1; }
+  100% { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes hud-out { to { opacity: 0; transform: translateY(6px) scaleY(0.98); filter: blur(6px); } }
+@keyframes hud-reveal-x { from { clip-path: inset(0 100% 0 0); opacity: 0.4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+@keyframes hud-reveal-y { from { clip-path: inset(0 0 100% 0); opacity: 0; filter: blur(4px); } to { clip-path: inset(0 0 0 0); opacity: 1; filter: blur(0); } }
+@keyframes hud-hide-y { from { clip-path: inset(0 0 0 0); opacity: 1; } to { clip-path: inset(0 0 100% 0); opacity: 0; } }
+@keyframes hud-dialog-in {
+  0% { opacity: 0; clip-path: inset(49% 0 49% 0); filter: blur(6px); }
+  45% { opacity: 1; clip-path: inset(0 0 0 0); }
+  100% { opacity: 1; clip-path: inset(0 0 0 0); filter: blur(0); }
+}
+@keyframes hud-dialog-out { to { opacity: 0; clip-path: inset(49% 0 49% 0); filter: blur(4px); } }
+@keyframes hud-overlay-in { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; } }
+@keyframes hud-bracket-in { from { width: 0; height: 0; opacity: 0; } to { width: var(--bracket); height: var(--bracket); opacity: 1; } }
+@keyframes hud-underline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes hud-pop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes hud-row-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@keyframes hud-scan { from { top: -20%; } to { top: 110%; } }
+@keyframes hud-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+@keyframes hud-blink { 50% { opacity: 0.35; } }
+@keyframes hud-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+@keyframes hud-sheen { 0% { left: -45%; } 55%, 100% { left: 125%; } }
+@keyframes hud-edge-scan { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@keyframes hud-glow-pulse { 0%, 100% { box-shadow: 0 0 0 1px rgba(255, 122, 47, 0.35), 0 0 14px -6px rgba(255, 122, 47, 0.4); } 50% { box-shadow: 0 0 0 1px rgba(255, 122, 47, 0.8), 0 0 26px -4px rgba(255, 122, 47, 0.75); } }
+@keyframes hud-done-flash { 0% { box-shadow: 0 0 0 1px var(--sky), 0 0 30px -2px rgba(142, 201, 255, 0.8); } 100% { box-shadow: 0 0 0 1px rgba(142, 201, 255, 0.35), 0 0 0 0 transparent; } }
+@keyframes hud-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-3px); } 40% { transform: translateX(3px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(1px); } }
+@keyframes hud-glitch {
+  0% { clip-path: inset(0 0 60% 0); transform: translate(-3px, 0); }
+  25% { clip-path: inset(40% 0 0 0); transform: translate(3px, 0); }
+  50% { clip-path: inset(20% 0 30% 0); transform: translate(-1px, 0); }
+  100% { clip-path: inset(0); transform: none; }
+}
+@keyframes hud-flash-up { 0% { background-color: rgba(142, 201, 255, 0.3); color: var(--sky); } 100% { background-color: transparent; } }
+@keyframes hud-flash-down { 0% { background-color: rgba(255, 74, 61, 0.3); color: var(--destructive); } 100% { background-color: transparent; } }
+@keyframes hud-draw { from { stroke-dashoffset: var(--hud-len, 1000); } to { stroke-dashoffset: 0; } }
+@keyframes hud-beam-spin { to { --hud-angle: 360deg; } }
+@keyframes hud-stripes { to { background-position: 28px 0; } }
+@keyframes hud-caret { 50% { opacity: 0; } }
+
+/* ---------- 4. База ---------- */
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { color-scheme: dark; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-image:
+      radial-gradient(1400px 520px at 50% -8%, rgba(142, 201, 255, 0.12), transparent 70%),
+      radial-gradient(900px 500px at 85% 105%, rgba(255, 122, 47, 0.08), transparent 70%);
+    background-attachment: fixed;
+  }
+  ::selection { background: rgba(255, 122, 47, 0.35); color: #fff; }
+  :where(code, kbd, samp, pre, time, [data-numeric]) { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  :where(h1, h2, h3) { letter-spacing: 0.03em; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(200, 204, 212, 0.16); }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 122, 47, 0.5); }
+}
+
+/* ---------- 5. HUD-стиль штатных компонентов (слой components) ---------- */
+@layer components {
+  /* === Кнопки. :is(button,a)[data-variant] ловит Button даже внутри *Trigger asChild === */
+  :is(button, a)[data-variant][data-size] {
+    position: relative;
+    overflow: hidden;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    font-size: 0.75rem;
+    transition: background-color var(--dur-base) var(--ease-hud), color var(--dur-base) var(--ease-hud),
+      box-shadow var(--dur-base) var(--ease-hud), border-color var(--dur-base) var(--ease-hud), transform var(--dur-fast) var(--ease-hud);
+  }
+  :is(button, a)[data-variant][data-size]:active:not(:disabled) { transform: translateY(1px) scale(0.985); }
+  :is(button, a)[data-variant="default"][data-size] { box-shadow: var(--glow-primary); }
+  :is(button, a)[data-variant="default"][data-size]:hover { box-shadow: var(--glow-primary-strong); }
+  /* блик по primary при наведении */
+  :is(button, a)[data-variant="default"][data-size]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 35%;
+    left: -45%;
+    background: linear-gradient(90deg, transparent, rgba(255, 240, 225, 0.45), transparent);
+    pointer-events: none;
+  }
+  :is(button, a)[data-variant="default"][data-size]:hover::after { animation: hud-sheen 0.9s var(--ease-hud) 1; }
+  /* outline — уголки-скобки, которые растут при наведении */
+  :is(button, a)[data-variant="outline"][data-size]::before,
+  :is(button, a)[data-variant="outline"][data-size]::after {
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-color: var(--line-strong);
+    border-style: solid;
+    transition: all var(--dur-base) var(--ease-hud);
+    pointer-events: none;
+  }
+  :is(button, a)[data-variant="outline"][data-size]::before { left: -1px; top: -1px; border-width: 1px 0 0 1px; }
+  :is(button, a)[data-variant="outline"][data-size]::after { right: -1px; bottom: -1px; border-width: 0 1px 1px 0; }
+  :is(button, a)[data-variant="outline"][data-size]:hover { border-color: rgba(255, 122, 47, 0.45); color: var(--primary); }
+  :is(button, a)[data-variant="outline"][data-size]:hover::before,
+  :is(button, a)[data-variant="outline"][data-size]:hover::after { width: 12px; height: 12px; border-color: var(--primary); }
+  :is(button, a)[data-variant="ghost"][data-size]:hover { color: var(--primary); }
+  :is(button, a)[data-variant="destructive"][data-size] { box-shadow: var(--glow-danger); }
+  :is(button, a)[data-variant="link"][data-size] { text-transform: none; letter-spacing: 0.02em; }
+
+  /* === Карточки, алерты, всплывающие панели: стекло + скобки + boot-анимация === */
+  :where([data-slot="card"], [data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="popover-content"], [data-slot="sheet-content"], [data-slot="alert"], [data-slot="hover-card-content"]) {
+    position: relative;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  :where([data-slot="card"], [data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="popover-content"], [data-slot="alert"], [data-slot="hover-card-content"])::before,
+  :where([data-slot="card"], [data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="popover-content"], [data-slot="alert"], [data-slot="hover-card-content"])::after {
+    content: "";
+    position: absolute;
+    width: var(--bracket);
+    height: var(--bracket);
+    border-color: var(--line-strong);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 1;
+    transition: width var(--dur-slow) var(--ease-hud), height var(--dur-slow) var(--ease-hud), border-color var(--dur-slow) var(--ease-hud);
+    animation: hud-bracket-in var(--dur-slow) var(--ease-hud) both;
+    animation-delay: calc(var(--i, 0) * var(--stagger) + 200ms);
+  }
+  :where([data-slot="card"], [data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="popover-content"], [data-slot="alert"], [data-slot="hover-card-content"])::before { left: -1px; top: -1px; border-width: 1px 0 0 1px; }
+  :where([data-slot="card"], [data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="popover-content"], [data-slot="alert"], [data-slot="hover-card-content"])::after { right: -1px; bottom: -1px; border-width: 0 1px 1px 0; }
+  [data-slot="card"]:hover::before,
+  [data-slot="card"]:hover::after { width: var(--bracket-hover); height: var(--bracket-hover); border-color: var(--primary); }
+
+  /* boot: карточки появляются из блюра каскадом. Порядок — style={{"--i": n}}.
+     Отключить: data-static на карточке или на любом предке. */
+  [data-slot="card"] { animation: hud-in var(--dur-boot) var(--ease-hud) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+  :where([data-static]) [data-slot="card"], [data-slot="card"][data-static] { animation: none; }
+
+  [data-slot="card-title"], [data-slot="dialog-title"], [data-slot="alert-dialog-title"], [data-slot="alert-title"], [data-slot="sheet-title"], [data-slot="table-head"], [data-slot="dropdown-menu-label"], [data-slot="select-label"] {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  [data-slot="card-description"], [data-slot="dialog-description"], [data-slot="alert-dialog-description"] { color: var(--muted-foreground); }
+
+  /* === Меню, селекты, поповеры, тултипы === */
+  :where([data-slot="dropdown-menu-content"], [data-slot="select-content"], [data-slot="popover-content"], [data-slot="context-menu-content"], [data-slot="menubar-content"], [data-slot="command"], [data-slot="hover-card-content"]) {
+    background: var(--popover);
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-lg);
+  }
+  [data-slot$="-item"][data-highlighted] { box-shadow: inset 2px 0 0 var(--primary); }
+  [data-slot="dropdown-menu-shortcut"] { font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: 0.04em; }
+  [data-slot="tooltip-content"] {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    background: var(--panel-strong);
+    color: var(--foreground);
+    border: 1px solid var(--line-strong);
+  }
+
+  /* === Бейджи: HUD-теги (цвета — в разделе 6) === */
+  [data-slot="badge"] { text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; font-size: 0.625rem; }
+
+  /* === Поля ввода: фокус — оранжевая рамка со вспышкой свечения === */
+  :where([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="input-otp-slot"]) {
+    background: rgba(14, 16, 19, 0.9);
+    transition: border-color var(--dur-base) var(--ease-hud), box-shadow var(--dur-slow) var(--ease-hud);
+  }
+  :where([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):focus-visible {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary), var(--glow-primary);
+  }
+  :where([data-slot="input"], [data-slot="textarea"])::placeholder { color: var(--text-dim); }
+  [data-slot="label"] { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6875rem; color: var(--muted-foreground); }
+
+  /* === Табы === */
+  [data-slot="tabs-list"] { background: transparent; }
+  [data-slot="tabs-trigger"] { position: relative; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6875rem; }
+  [data-slot="tabs-trigger"]:hover { color: var(--foreground); }
+  [data-slot="tabs-trigger"][data-state="active"] { background: linear-gradient(180deg, var(--panel-strong), transparent); }
+  [data-slot="tabs-trigger"][data-state="active"]::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: -1px;
+    height: 1px;
+    background: var(--primary);
+    box-shadow: 0 0 10px var(--primary);
+    transform-origin: left;
+    animation: hud-underline var(--dur-slow) var(--ease-hud) both;
+  }
+  [data-slot="tabs-content"][data-state="active"] { animation: hud-reveal-x 0.5s var(--ease-hud) both; }
+
+  /* === Аккордеон, коллапсы === */
+  [data-slot="accordion-trigger"] { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; }
+  [data-slot="accordion-trigger"][data-state="open"] { color: var(--primary); }
+  [data-slot="accordion-item"] { border-color: var(--border); }
+
+  /* === Прогресс: свечение + бегущий блик === */
+  [data-slot="progress"] { position: relative; height: 3px; background: var(--border); overflow: hidden; }
+  [data-slot="progress-indicator"] { box-shadow: 0 0 10px var(--primary); transition: transform 0.6s var(--ease-hud); }
+  [data-slot="progress"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 235, 215, 0.55) 50%, transparent 100%);
+    background-size: 30% 100%;
+    background-repeat: no-repeat;
+    animation: hud-edge-scan 1.8s linear infinite;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+
+  /* === Слайдер, свитч, чекбокс, радио === */
+  [data-slot="slider-range"] { box-shadow: 0 0 10px var(--primary); }
+  [data-slot="slider-thumb"] { transition: box-shadow var(--dur-base) var(--ease-hud), transform var(--dur-fast) var(--ease-hud); }
+  [data-slot="slider-thumb"]:hover, [data-slot="slider-thumb"]:focus-visible { box-shadow: 0 0 0 4px rgba(255, 122, 47, 0.2), var(--glow-primary); }
+  [data-slot="switch"][data-state="checked"] { box-shadow: var(--glow-primary); }
+  [data-slot="checkbox"][data-state="checked"], [data-slot="radio-group-item"][data-state="checked"] { box-shadow: var(--glow-primary); }
+  [data-slot="checkbox-indicator"] { animation: hud-pop var(--dur-base) var(--ease-hud) both; }
+
+  /* === Таблицы: строки въезжают каскадом, числа моно === */
+  [data-slot="table-head"] { font-size: 0.6875rem; color: var(--muted-foreground); }
+  [data-slot="table-cell"] { font-variant-numeric: tabular-nums; }
+  [data-slot="table-row"] { transition: background-color var(--dur-base) var(--ease-hud), box-shadow var(--dur-base) var(--ease-hud); }
+  [data-slot="table-body"] [data-slot="table-row"]:hover { background: rgba(255, 122, 47, 0.05); box-shadow: inset 2px 0 0 var(--primary); }
+  [data-slot="table-body"] [data-slot="table-row"] { animation: hud-row-in 0.45s var(--ease-hud) both; }
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(2) { animation-delay: 50ms; }
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(3) { animation-delay: 100ms; }
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(4) { animation-delay: 150ms; }
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(5) { animation-delay: 200ms; }
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(6) { animation-delay: 250ms; }
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(7) { animation-delay: 300ms; }
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(8) { animation-delay: 350ms; }
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(n + 9) { animation-delay: 400ms; }
+  :where([data-static]) [data-slot="table-body"] [data-slot="table-row"] { animation: none; }
+
+  /* === Скелетоны, разделители, алерты, сайдбар === */
+  [data-slot="skeleton"] {
+    background-image: linear-gradient(100deg, transparent 30%, rgba(200, 204, 212, 0.1) 50%, transparent 70%);
+    background-size: 220% 100%;
+  }
+  [data-slot="separator"][data-orientation="horizontal"] { background: linear-gradient(90deg, var(--line-strong), var(--border) 60%, transparent); }
+  [data-slot="alert"] { background: var(--panel); box-shadow: inset 2px 0 0 var(--primary); }
+  [data-slot="alert"]:where(.text-destructive) { box-shadow: inset 2px 0 0 var(--destructive); }
+  [data-slot="sidebar-menu-button"][data-active="true"] { box-shadow: inset 2px 0 0 var(--primary); color: var(--primary); }
+  [data-slot="kbd"] { font-family: var(--font-mono); }
+}
+
+/* ---------- 6. Жёсткие HUD-правки поверх утилит компонентов ----------
+   (вне слоёв → сильнее классов из компонентов)                              */
+:is([data-slot="checkbox"], [data-slot="badge"], [data-slot="switch"], [data-slot="switch-thumb"], [data-slot="slider-thumb"], [data-slot="progress"], [data-slot="slider-track"], [data-slot="avatar"], [data-slot="avatar-image"], [data-slot="avatar-fallback"]) { border-radius: 0 !important; }
+[data-slot="slider-thumb"] { background: var(--background) !important; border-color: var(--primary) !important; }
+[data-slot="switch"][data-state="unchecked"] { background: rgba(200, 204, 212, 0.12) !important; }
+[data-slot="switch-thumb"][data-state="unchecked"] { background: var(--muted-foreground) !important; }
+[data-slot="skeleton"] { background-color: rgba(200, 204, 212, 0.07) !important; }
+[data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], [data-slot="sheet-overlay"] { background: rgba(5, 6, 8, 0.72) !important; backdrop-filter: blur(3px); }
+
+/* Бейджи → контурные HUD-теги. Тон можно задать без правки компонента: <Badge data-tone="sky"> */
+[data-slot="badge"] { border: 1px solid currentColor !important; box-shadow: none !important; }
+[data-slot="badge"][data-variant="default"] { color: var(--primary) !important; background: rgba(255, 122, 47, 0.12) !important; }
+[data-slot="badge"][data-variant="secondary"] { color: var(--foreground) !important; background: rgba(200, 204, 212, 0.08) !important; border-color: var(--line-strong) !important; }
+[data-slot="badge"][data-variant="destructive"] { color: var(--destructive) !important; background: rgba(255, 74, 61, 0.12) !important; }
+[data-slot="badge"][data-variant="outline"] { color: var(--muted-foreground) !important; background: transparent !important; border-color: var(--line-strong) !important; }
+[data-slot="badge"][data-tone="sky"], [data-slot="badge"][data-tone="success"] { color: var(--sky) !important; background: rgba(142, 201, 255, 0.12) !important; border-color: currentColor !important; }
+[data-slot="badge"][data-tone="warning"] { color: var(--warning) !important; background: rgba(255, 194, 75, 0.12) !important; border-color: currentColor !important; }
+[data-slot="badge"][data-tone="danger"] { color: var(--destructive) !important; background: rgba(255, 74, 61, 0.12) !important; border-color: currentColor !important; }
+
+/* Кнопка-тон: <Button data-tone="sky"> */
+:is(button, a)[data-variant][data-tone="sky"] { background: rgba(142, 201, 255, 0.12); color: var(--sky); border: 1px solid rgba(142, 201, 255, 0.5); box-shadow: var(--glow-sky); }
+
+/* Кнопка в процессе: <Button data-loading> — полосы и курсор ожидания */
+:is(button, a)[data-variant][data-loading] {
+  pointer-events: none;
+  background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.14) 0 7px, transparent 7px 14px);
+  background-size: 28px 100%;
+  animation: hud-stripes 0.6s linear infinite;
+}
+
+/* Анимации открытия всплывающих панелей (заменяют zoom/fade из tw-animate) */
+[data-slot="dialog-content"][data-state="open"], [data-slot="alert-dialog-content"][data-state="open"] { animation: hud-dialog-in 0.5s var(--ease-hud) both; }
+[data-slot="dialog-content"][data-state="closed"], [data-slot="alert-dialog-content"][data-state="closed"] { animation: hud-dialog-out 0.25s var(--ease-hud) both; }
+[data-slot="dialog-overlay"][data-state="open"], [data-slot="alert-dialog-overlay"][data-state="open"] { animation: hud-overlay-in 0.35s var(--ease-hud) both; }
+:is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="select-content"], [data-slot="popover-content"], [data-slot="context-menu-content"], [data-slot="menubar-content"], [data-slot="hover-card-content"])[data-state="open"] { animation: hud-reveal-y 0.3s var(--ease-hud) both; }
+:is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="select-content"], [data-slot="popover-content"], [data-slot="context-menu-content"], [data-slot="menubar-content"], [data-slot="hover-card-content"])[data-state="closed"] { animation: hud-hide-y 0.18s var(--ease-hud) both; }
+[data-slot="tooltip-content"][data-state="delayed-open"], [data-slot="tooltip-content"][data-state="instant-open"] { animation: hud-reveal-x 0.25s var(--ease-hud) both; }
+
+/* Тосты sonner */
+[data-sonner-toast] {
+  border-radius: 0 !important;
+  background: rgba(16, 18, 21, 0.94) !important;
+  border: 1px solid var(--line-strong) !important;
+  color: var(--foreground) !important;
+  font-family: var(--font-sans) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: inset 2px 0 0 var(--primary), var(--shadow-lg) !important;
+}
+[data-sonner-toast] [data-title] { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; }
+[data-sonner-toast] [data-description] { color: var(--muted-foreground) !important; }
+[data-sonner-toast][data-type="success"] { box-shadow: inset 2px 0 0 var(--sky), var(--glow-sky) !important; }
+[data-sonner-toast][data-type="error"] { box-shadow: inset 2px 0 0 var(--destructive), var(--glow-danger) !important; }
+[data-sonner-toast][data-type="warning"] { box-shadow: inset 2px 0 0 var(--warning) !important; }
+
+/* ---------- 7. Состояния агента: data-agent на любом контейнере ----------
+   idle · working · waiting · done · error                                   */
+[data-agent] { transition: box-shadow var(--dur-slow) var(--ease-hud), border-color var(--dur-slow) var(--ease-hud); }
+[data-agent="working"] {
+  border-color: rgba(255, 122, 47, 0.55) !important;
+  background-image: linear-gradient(90deg, transparent, var(--primary), transparent);
+  background-size: 40% 1px;
+  background-repeat: no-repeat;
+  background-position: -40% 0;
+  animation: hud-edge-scan 1.6s linear infinite;
+}
+[data-agent="waiting"] { border-color: var(--primary) !important; animation: hud-glow-pulse 1.8s var(--ease-hud) infinite; }
+[data-agent="done"] { border-color: rgba(142, 201, 255, 0.5) !important; animation: hud-done-flash 1.2s var(--ease-hud) 1 both; }
+[data-agent="error"] { border-color: var(--destructive) !important; box-shadow: var(--glow-danger); animation: hud-shake 0.4s var(--ease-hud) 1; }
+[data-agent="working"][data-slot="card"]::before, [data-agent="working"][data-slot="card"]::after,
+[data-agent="waiting"][data-slot="card"]::before, [data-agent="waiting"][data-slot="card"]::after { border-color: var(--primary); width: var(--bracket-hover); height: var(--bracket-hover); }
+[data-agent="done"][data-slot="card"]::before, [data-agent="done"][data-slot="card"]::after { border-color: var(--sky); }
+[data-agent="error"][data-slot="card"]::before, [data-agent="error"][data-slot="card"]::after { border-color: var(--destructive); }
+
+/* ---------- 8. HUD-утилиты: пиши прямо в className ---------- */
+@utility hud-panel {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  &::before, &::after {
+    content: "";
+    position: absolute;
+    width: var(--bracket);
+    height: var(--bracket);
+    border-color: var(--line-strong);
+    border-style: solid;
+    pointer-events: none;
+    transition: all var(--dur-slow) var(--ease-hud);
+  }
+  &::before { left: -1px; top: -1px; border-width: 1px 0 0 1px; }
+  &::after { right: -1px; bottom: -1px; border-width: 0 1px 1px 0; }
+  &:hover::before, &:hover::after { width: var(--bracket-hover); height: var(--bracket-hover); border-color: var(--primary); }
+}
+/* Скобки на всех четырёх углах (для «объектов анализа», превью, карт) */
+@utility hud-frame {
+  position: relative;
+  background:
+    linear-gradient(var(--line-strong), var(--line-strong)) left top / 12px 1px no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) left top / 1px 12px no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) right top / 12px 1px no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) right top / 1px 12px no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) left bottom / 12px 1px no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) left bottom / 1px 12px no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) right bottom / 12px 1px no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) right bottom / 1px 12px no-repeat;
+}
+@utility hud-label {
+  display: inline-block;
+  padding: 5px 12px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+}
+@utility hud-cut { clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+@utility hud-octagon { clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+@utility hud-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+@utility hud-caps { text-transform: uppercase; letter-spacing: 0.09em; }
+@utility hud-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+@utility text-glow { text-shadow: 0 0 18px color-mix(in srgb, currentColor 45%, transparent); }
+@utility hud-grid { background-image: radial-gradient(rgba(200, 204, 212, 0.3) 0.6px, transparent 0.8px); background-size: 44px 44px; }
+@utility hud-blueprint {
+  background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+@utility hud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: hud-ping 1.8s var(--ease-hud) infinite;
+}
+/* Бегущий луч по рамке: <div className="hud-beam p-px"><div className="bg-background">…</div></div>
+   Выключить: data-active="false" */
+@utility hud-beam {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    padding: 1px;
+    background: conic-gradient(from var(--hud-angle), transparent 0 60%, var(--primary) 80%, #ffd2b0 88%, transparent 100%), var(--line-strong);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: hud-beam-spin 2.4s linear infinite;
+    pointer-events: none;
+  }
+  &[data-active="false"]::before { animation: none; background: var(--line-strong); }
+}
+/* Блик, пробегающий по элементу раз в ~3 с */
+@utility hud-sheen {
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 30%;
+    left: -45%;
+    background: linear-gradient(90deg, transparent, rgba(255, 220, 190, 0.22), transparent);
+    animation: hud-sheen 3.2s var(--ease-hud) infinite;
+    pointer-events: none;
+  }
+}
+/* Сканирующая полоса поверх блока */
+@utility hud-scanner {
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 30px;
+    top: -30px;
+    background: linear-gradient(to bottom, transparent, rgba(255, 122, 47, 0.14));
+    border-bottom: 1px solid var(--primary);
+    animation: hud-scan 2.4s var(--ease-hud) infinite;
+    pointer-events: none;
+  }
+}
+/* Сканлайны CRT и зерно */
+@utility hud-scanlines {
+  background-image: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px);
+}
+@utility hud-noise {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+/* Появление: boot-блюр, шторка, каскад детей */
+@utility hud-boot { animation: hud-in var(--dur-boot) var(--ease-hud) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+@utility hud-reveal { animation: hud-reveal-x 0.55s var(--ease-hud) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+@utility hud-stagger {
+  & > * { animation: hud-in 0.6s var(--ease-hud) both; }
+  & > *:nth-child(2) { animation-delay: 70ms; }
+  & > *:nth-child(3) { animation-delay: 140ms; }
+  & > *:nth-child(4) { animation-delay: 210ms; }
+  & > *:nth-child(5) { animation-delay: 280ms; }
+  & > *:nth-child(6) { animation-delay: 350ms; }
+  & > *:nth-child(7) { animation-delay: 420ms; }
+  & > *:nth-child(n + 8) { animation-delay: 490ms; }
+}
+/* Тревога: красно-синий сдвиг. Нужен data-text с тем же текстом */
+@utility hud-glitch {
+  position: relative;
+  &::before, &::after { content: attr(data-text); position: absolute; inset: 0; pointer-events: none; }
+  &::before { color: var(--sky); animation: hud-glitch 0.6s steps(6) 2; }
+  &::after { color: var(--primary); animation: hud-glitch 0.6s steps(6) 2 reverse; }
+}
+/* Мигающая каретка печати */
+@utility hud-caret {
+  &::after { content: ""; display: inline-block; width: 0.5em; height: 1em; margin-left: 2px; vertical-align: -0.12em; background: var(--primary); animation: hud-caret 0.8s steps(1) infinite; }
+}
+/* Вспышка изменения значения: добавь класс на 600 мс */
+@utility hud-flash-up { animation: hud-flash-up 0.6s var(--ease-hud) 1; }
+@utility hud-flash-down { animation: hud-flash-down 0.6s var(--ease-hud) 1; }
+/* Прорисовка SVG-линии: <path className="hud-draw" style={{"--hud-len": 400}} /> */
+@utility hud-draw { stroke-dasharray: var(--hud-len, 1000); animation: hud-draw 1.2s var(--ease-hud) both; animation-delay: calc(var(--i, 0) * var(--stagger)); }
+/* Делённая шкала: <div className="hud-ticks" style={{"--value": "64%"}} /> */
+@utility hud-ticks {
+  height: 6px;
+  background:
+    linear-gradient(90deg, var(--primary) var(--value, 0%), transparent var(--value, 0%)),
+    repeating-linear-gradient(90deg, rgba(200, 204, 212, 0.18) 0 calc(10% - 3px), transparent calc(10% - 3px) 10%);
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent calc(10% - 3px) 10%);
+  mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent calc(10% - 3px) 10%);
+  transition: background 0.6s var(--ease-hud);
+}
+@utility hud-divider { height: 1px; background: linear-gradient(90deg, var(--primary), var(--line-strong) 20%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
