@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: strata-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: STRATA_PUBLIC_DEMO
+        value: "true"
+      - key: DEMO_AUTH_USER
+        value: jury
+      - key: DEMO_AUTH_PASSWORD
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false

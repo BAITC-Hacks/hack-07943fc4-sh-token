@@ -87,7 +87,7 @@ export function GraphAssistant({ runId, gid, review, onNode, onOpen }: {
         <div ref={bottom} />
       </div>
       <form className="shrink-0 space-y-3 border-t border-border p-4" onSubmit={submit}>
-        {config && !config.configured && <p role="alert" className="text-xs text-warning">Настройте OPENAI_API_KEY и OPENAI_MODEL в .env.local и перезапустите сервер.</p>}
+        {config && !config.configured && <p role="alert" className="text-xs text-warning">AI не настроен владельцем сервера. Нужны OPENAI_API_KEY и OPENAI_MODEL в секретах хостинга или локальном .env.local.</p>}
         {error && <p role="alert" className="max-h-24 overflow-auto border border-destructive/40 p-2 text-xs leading-5 text-destructive">{error}</p>}
         <textarea ref={input} aria-label="Вопрос ассистенту" value={question} onChange={e => setQuestion(e.target.value)} maxLength={1200} rows={2} disabled={!available}
           placeholder={available ? "Спросите о клиенте или денежных связях…" : "Сначала выполните анализ"}
