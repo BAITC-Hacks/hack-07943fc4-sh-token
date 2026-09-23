@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { ArrowUpRight, ChevronDown, Send, X } from "lucide-react"
 import { BotAvatar } from "bot-avatars"
 import { Button } from "@/components/ui/button"
@@ -8,6 +9,7 @@ import { askGraphAssistant } from "@/lib/api"
 import type { AssistantAnswer } from "@/lib/graph-investigation"
 
 type Message = { question: string; answer: AssistantAnswer; model: string }
+const subscribeToClient = () => () => {}
 
 function AnalystAvatar({ busy, size = 40 }: { busy: boolean; size?: number }) {
   const [color, setColor] = React.useState<string>()
@@ -34,6 +36,7 @@ export function GraphAssistant({ runId, gid, review, onNode, onOpen }: {
   const input = React.useRef<HTMLTextAreaElement>(null)
   const launcher = React.useRef<HTMLButtonElement>(null)
   const available = !!runId && !!gid
+  const mounted = React.useSyncExternalStore(subscribeToClient, () => true, () => false)
 
   React.useEffect(() => {
     let active = true
@@ -57,7 +60,9 @@ export function GraphAssistant({ runId, gid, review, onNode, onOpen }: {
     finally { setBusy(false) }
   }
 
-  return <div className="analyst-workspace">
+  if (!mounted) return null
+  // The root layout has a stacking context: portal keeps the launcher above detail sheets.
+  return createPortal(<div className="analyst-workspace">
     <section id="assistant-dock" hidden={!open} aria-label="AI-ассистент аналитика"
       onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); close() } }}
       className="fixed right-4 bottom-24 z-60 flex h-[min(740px,calc(100dvh-116px))] w-[min(480px,calc(100vw-32px))] flex-col border border-line-strong bg-background shadow-glow data-[closed=true]:hidden"
@@ -97,5 +102,5 @@ export function GraphAssistant({ runId, gid, review, onNode, onOpen }: {
       <span><span className="block text-sm">AI-ассистент</span><span className="mt-1 block text-[10px] text-sky">{busy ? "Проверяю запрос…" : open ? "Свернуть панель" : "Спросить по графу"}</span></span>
       {open ? <ChevronDown className="size-4 text-muted-foreground" /> : <span className="size-1.5 rounded-full bg-sky" />}
     </button>
-  </div>
+  </div>, document.body)
 }
