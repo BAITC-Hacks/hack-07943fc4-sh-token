@@ -2,6 +2,10 @@
 
 # dependencies
 /node_modules
+/pipeline/.venv
+/pipeline/.uv-cache
+__pycache__/
+.pytest_cache/
 /.pnp
 .pnp.*
 .yarn/*
