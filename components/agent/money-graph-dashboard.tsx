@@ -4,14 +4,10 @@ import * as React from "react"
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  ChevronRight,
   CircleDollarSign,
-  Database,
-  LoaderCircle,
   Network,
   Route,
   Search,
-  ShieldAlert,
   Users,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -37,9 +33,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getMoneyGraph } from "@/lib/api"
+import { analyzeMoneyGraph } from "@/lib/api"
 import { filterTopNodes, indexMoneyGraph, isGid, MONEY_ROLES } from "@/lib/graph-data"
-import type { MoneyGraphData, MoneyNode, MoneyRole } from "@/lib/graph-types"
+import type { AnalysisRun, AnalysisSource, MoneyGraphData, MoneyNode, MoneyRole } from "@/lib/graph-types"
+import { toggleReviewGid } from "@/lib/review-list"
+import { AnalysisInput } from "./analysis-input"
+import { NetworkOverview } from "./network-overview"
+import { ReviewButton, ReviewList } from "./review-list"
 import { ClusterOverview } from "./cluster-overview"
 import { clusterLabel, money, ROLE_LABELS, RoleBadge, roleBar, roleStroke, score } from "./graph-presentation"
 
@@ -48,6 +48,8 @@ type Phase = "idle" | "loading" | "done" | "error"
 export function MoneyGraphDashboard() {
   const [phase, setPhase] = React.useState<Phase>("idle")
   const [data, setData] = React.useState<MoneyGraphData | null>(null)
+  const [run, setRun] = React.useState<AnalysisRun | null>(null)
+  const [reviewGids, setReviewGids] = React.useState<string[]>([])
   const [selectedGid, setSelectedGid] = React.useState("")
   const [query, setQuery] = React.useState("")
   const [searchError, setSearchError] = React.useState("")
@@ -56,19 +58,26 @@ export function MoneyGraphDashboard() {
   const [roleFilter, setRoleFilter] = React.useState<MoneyRole | "all">("all")
   const [clusterFilter, setClusterFilter] = React.useState<number | "all">("all")
 
+  React.useEffect(() => {
+    if (phase === "done") window.scrollTo({ top: 0, behavior: "instant" })
+  }, [phase])
+
   const { nodesById, membersByCluster } = React.useMemo(
     () => data ? indexMoneyGraph(data) : { nodesById: new Map<string, MoneyNode>(), membersByCluster: new Map<number, MoneyNode[]>() },
     [data]
   )
   const selected = nodesById.get(selectedGid) ?? null
 
-  const loadResult = React.useCallback(async () => {
+  const calculate = React.useCallback(async (source: AnalysisSource, files: File[] = []) => {
     setPhase("loading")
     setSearchError("")
     setLoadError("")
     try {
-      const result = await getMoneyGraph()
+      const response = await analyzeMoneyGraph(source, files)
+      const result = response.graph
       setData(result)
+      setRun(response.run)
+      setReviewGids([])
       const firstGid = result.topNodes[0]?.gid ?? result.nodes[0]?.gid ?? ""
       setSelectedGid(firstGid)
       setSelectedCluster(result.nodes.find((node) => node.gid === firstGid)?.cluster_id ?? result.clusters[0]?.cluster_id ?? null)
@@ -76,7 +85,7 @@ export function MoneyGraphDashboard() {
       setClusterFilter("all")
       setQuery("")
       setPhase("done")
-      if (result.nodes.length) toast.success("Сохранённый результат загружен")
+      if (result.nodes.length) toast.success("Python-пайплайн завершён. Результат готов к проверке.")
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Не удалось получить файл результатов.")
       setPhase("error")
@@ -88,46 +97,48 @@ export function MoneyGraphDashboard() {
       const normalized = gid.trim()
       if (!isGid(normalized)) {
         setSearchError("Введите точный GID: 18 цифр без пробелов внутри")
-        return
+        return false
       }
       if (!nodesById.has(normalized)) {
         setSearchError("GID не найден в наблюдаемой сети")
-        return
+        return false
       }
       setSelectedGid(normalized)
       setSelectedCluster(nodesById.get(normalized)!.cluster_id)
       setQuery(normalized)
       setSearchError("")
+      return true
     },
     [nodesById]
   )
 
   const openNode = (gid: string) => {
-    findNode(gid)
+    if (!findNode(gid)) return
     document.getElementById("node-detail")?.focus({ preventScroll: true })
     document.getElementById("network-detail")?.scrollIntoView({ block: "start" })
   }
 
-  if (phase === "idle") {
-    return <StartScreen onLoad={loadResult} />
+  const toggleReview = (gid: string) => {
+    if (nodesById.has(gid)) setReviewGids((current) => toggleReviewGid(current, gid))
+  }
+  const openCluster = (id: number) => {
+    setSelectedCluster(id)
+    document.getElementById("clusters")?.scrollIntoView({ block: "start" })
   }
 
-  if (phase === "loading") {
-    return <LoadingScreen />
+  if (phase !== "done" || !data || !run) {
+    return <AnalysisInput busy={phase === "loading"} error={loadError} onRun={calculate}
+      reviewCount={reviewGids.length} onBack={data && run ? () => setPhase("done") : undefined} />
   }
 
-  if (phase === "error" || !data) {
-    return <ErrorScreen onRetry={loadResult} detail={loadError} />
-  }
-
-  if (!data.nodes.length) return <EmptyScreen onRetry={loadResult} />
+  if (!data.nodes.length) return <Card><CardHeader><CardTitle>В результате нет узлов</CardTitle><CardDescription>Проверьте комплект выгрузки и запустите расчёт заново.</CardDescription></CardHeader><CardContent><Button onClick={() => setPhase("idle")}>Выбрать данные</Button></CardContent></Card>
 
   return (
     <section className="space-y-4" data-agent="done">
       <header className="flex flex-col justify-between gap-4 border-b border-border pb-4 xl:flex-row xl:items-end">
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <span className="hud-tag" data-tone="sky"><span className="hud-dot" />Сохранённый результат</span>
+            <span className="hud-tag" data-tone="sky"><span className="hud-dot" />Расчёт завершён</span>
             <span className="hud-num text-xs text-dim">{data.meta.periodStart} — {data.meta.periodEnd}</span>
           </div>
           <DecodeText
@@ -143,18 +154,31 @@ export function MoneyGraphDashboard() {
           query={query}
           error={searchError}
           onQuery={setQuery}
-          onSearch={() => findNode(query)}
+          onSearch={() => openNode(query)}
         />
       </header>
 
       <div className="flex flex-wrap items-center gap-3 text-xs">
+        <a href="#network-overview" className="hud-tag hover:text-primary">Потоки</a>
         <a href="#clusters" className="hud-tag hover:text-primary">Кластеры / {data.clusters.length}</a>
         <a href="#candidates" className="hud-tag hover:text-primary">Кандидаты / {data.topNodes.length}</a>
-        <span className="text-muted-foreground">Новый пересчёт parquet: <code className="text-foreground">npm run analyze</code></span>
-        <Button className="ml-auto" size="sm" variant="outline" onClick={loadResult}>Обновить сохранённый результат</Button>
+        <a href="#review-list" className="hud-tag text-primary">Мой список / {reviewGids.length}</a>
+        <Button className="ml-auto" size="sm" variant="outline" onClick={() => { setLoadError(""); setPhase("idle") }}>Новый расчёт / выбрать данные</Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-border bg-panel p-3 text-xs text-muted-foreground">
+        <span>{run.source === "organizers" ? "Предзагруженный кейс организаторов" : "Загруженные аналитиком parquet"}</span>
+        <span className="hud-num">Seed: {run.seedCount} → сеть: {data.nodes.length} → выбранные: {reviewGids.length}</span>
+        <span className="hud-num">Расчёт: {run.elapsedSeconds} с</span>
+        <details className="w-full"><summary className="cursor-pointer text-sky">Паспорт расчёта и выполненные этапы</summary><div className="mt-3 space-y-2">
+          <p className="hud-num break-all">Запуск {run.id} · {new Date(run.completedAt).toLocaleString("ru-RU")}</p>
+          <p>{run.files.map((file) => `${file.name} (${file.size} байт)`).join(" · ")}</p>
+          <ul className="list-inside list-disc">{run.steps.map((step) => <li key={step}>{step}</li>)}</ul>
+        </div></details>
       </div>
 
       <KpiGrid data={data} />
+      <NetworkOverview key={run.id} data={data} membersByCluster={membersByCluster} onCluster={openCluster} />
 
       <div id="network-detail" className="grid scroll-mt-4 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <div className="min-w-0 space-y-4">
@@ -162,7 +186,7 @@ export function MoneyGraphDashboard() {
           <RoleSummary data={data} />
         </div>
         <div id="node-detail" tabIndex={-1} aria-label="Карточка выбранного узла" className="min-w-0 space-y-4 outline-none">
-          <NodeCard node={selected} />
+          <NodeCard node={selected} included={reviewGids.includes(selectedGid)} onToggle={toggleReview} />
           <ClusterCard data={data} node={selected} />
         </div>
       </div>
@@ -177,97 +201,9 @@ export function MoneyGraphDashboard() {
         }}
       />
       <TopNodesCard data={data} nodesById={nodesById} selectedGid={selectedGid} onSelect={openNode}
-        roleFilter={roleFilter} clusterFilter={clusterFilter} onRole={setRoleFilter} onCluster={setClusterFilter} />
-    </section>
-  )
-}
-
-function StartScreen({ onLoad }: { onLoad: () => void }) {
-  return (
-    <section className="mx-auto flex min-h-[72vh] max-w-5xl items-center justify-center">
-      <Card className="w-full" data-agent="waiting">
-        <CardHeader className="border-b border-border pb-5 text-center">
-          <CardDescription className="hud-caps text-primary">AML // Графовый анализ</CardDescription>
-          <CardTitle className="hud-caps text-3xl md:text-5xl">
-            <DecodeText text="ИССЛЕДОВАТЬ ГРАФ ДЕНЕГ" />
-          </CardTitle>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Откройте сохранённую карту переводов: кластеры, кандидаты на проверку и связи
-            конкретного GID. Роли и оценки уже рассчитаны локальным Python-пайплайном.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-6 py-6">
-          <div className="hud-panel relative flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-            <Database className="size-5 text-primary" />
-            <div className="min-w-0 flex-1">
-              <p className="hud-num text-xs text-foreground">public/data/graph.json</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Браузер только загружает результат. Новый расчёт здесь не запускается.
-              </p>
-            </div>
-            <Button size="lg" onClick={onLoad}>
-              Загрузить результат <ChevronRight data-icon="inline-end" />
-            </Button>
-          </div>
-          <RecalculateHint />
-        </CardContent>
-      </Card>
-    </section>
-  )
-}
-
-function LoadingScreen() {
-  return (
-    <section className="mx-auto flex min-h-[72vh] max-w-3xl items-center" data-agent="working" aria-busy="true" aria-live="polite">
-      <Card className="w-full">
-        <CardHeader>
-          <LoaderCircle className="mb-3 size-6 animate-spin text-primary motion-reduce:animate-none" />
-          <CardDescription className="hud-caps text-primary">ORION // Загрузка файла</CardDescription>
-          <CardTitle className="hud-caps text-2xl">Загружаем сохранённый результат</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Читаем public/data/graph.json. Пересчёт parquet не выполняется.
-        </CardContent>
-      </Card>
-    </section>
-  )
-}
-
-function RecalculateHint() {
-  return <div className="space-y-2 text-sm text-muted-foreground">
-    <p>Для нового пересчёта parquet выполните в терминале из корня проекта:</p>
-    <code className="hud-num block border border-border bg-background p-3 text-primary">npm run analyze</code>
-    <p className="text-xs">После завершения загрузите сохранённый результат в браузере.</p>
-  </div>
-}
-
-function EmptyScreen({ onRetry }: { onRetry: () => void }) {
-  return <section className="mx-auto flex min-h-[72vh] max-w-3xl items-center" data-agent="empty">
-    <Card className="w-full">
-      <CardHeader><Database className="mb-3 size-8 text-sky" /><CardTitle>В сохранённом результате нет узлов</CardTitle>
-        <CardDescription>Файл загружен, но сеть пуста. Проверьте исходные данные и выполните пересчёт.</CardDescription></CardHeader>
-      <CardContent className="space-y-4"><RecalculateHint /><Button onClick={onRetry}>Загрузить снова</Button></CardContent>
-    </Card>
-  </section>
-}
-
-function ErrorScreen({ onRetry, detail }: { onRetry: () => void; detail: string }) {
-  return (
-    <section className="mx-auto flex min-h-[72vh] max-w-3xl items-center" data-agent="error">
-      <Card className="w-full">
-        <CardHeader>
-          <ShieldAlert className="mb-3 size-8 text-destructive" />
-          <CardTitle className="hud-caps">Не удалось загрузить результаты</CardTitle>
-          <CardDescription>
-            Проверьте соединение и наличие public/data/graph.json. Тестовые данные не подставляются.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p role="alert" className="text-sm text-destructive">{detail}</p>
-          <RecalculateHint />
-          <Button onClick={onRetry}>Повторить загрузку</Button>
-        </CardContent>
-      </Card>
+        roleFilter={roleFilter} clusterFilter={clusterFilter} onRole={setRoleFilter} onCluster={setClusterFilter}
+        reviewGids={reviewGids} onToggle={toggleReview} />
+      <ReviewList graph={data} run={run} nodes={reviewGids.map((gid) => nodesById.get(gid)!).filter(Boolean)} onRemove={toggleReview} onNode={openNode} />
     </section>
   )
 }
@@ -311,13 +247,14 @@ function SearchBox({
 function KpiGrid({ data }: { data: MoneyGraphData }) {
   const metrics = [
     { label: "Узлы сети", value: data.meta.nodes, suffix: "", icon: Users },
+    { label: "Исходные seed", value: data.nodes.filter((node) => node.is_seed).length, suffix: "", icon: Users },
     { label: "Направленные рёбра", value: data.meta.edges, suffix: "", icon: Network },
     { label: "Транзакции", value: data.meta.transactions, suffix: "", icon: Route },
     { label: "Оборот", value: data.meta.turnoverKzt / 1_000_000, suffix: " млн ₸", icon: CircleDollarSign, decimals: 1 },
     { label: "Кластеры", value: data.clusters.length, suffix: "", icon: Network },
   ]
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
       {metrics.map((metric, index) => (
         <Card key={metric.label} size="sm" style={stagger(index)}>
           <CardHeader>
@@ -460,6 +397,7 @@ function TopNodesCard({
   selectedGid,
   onSelect,
   roleFilter, clusterFilter, onRole, onCluster,
+  reviewGids, onToggle,
 }: {
   data: MoneyGraphData
   nodesById: Map<string, MoneyNode>
@@ -469,6 +407,8 @@ function TopNodesCard({
   clusterFilter: number | "all"
   onRole: (role: MoneyRole | "all") => void
   onCluster: (id: number | "all") => void
+  reviewGids: string[]
+  onToggle: (gid: string) => void
 }) {
   const candidates = filterTopNodes(data, nodesById, roleFilter, clusterFilter)
   const reset = () => { onRole("all"); onCluster("all") }
@@ -507,7 +447,9 @@ function TopNodesCard({
               <TableHead>Роль</TableHead>
               <TableHead>Кластер</TableHead>
               <TableHead className="text-right">Приоритет</TableHead>
+              <TableHead>Вход / выход, ₸</TableHead>
               <TableHead>Почему в очереди</TableHead>
+              <TableHead>Проверить</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -517,14 +459,16 @@ function TopNodesCard({
                 key={node.gid}
               >
                 <TableCell className="hud-num pl-4 text-dim">{String(node.rank).padStart(2, "0")}</TableCell>
-                <TableCell className="hud-num"><button type="button" className="underline decoration-border underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" onClick={() => onSelect(node.gid)} aria-label={`Разобрать кандидата ${node.gid}`}>{node.gid}</button></TableCell>
+                <TableCell className="hud-num text-xs"><button type="button" className="underline decoration-border underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" onClick={() => onSelect(node.gid)} aria-label={`Разобрать кандидата ${node.gid}`}>{node.gid}</button></TableCell>
                 <TableCell><RoleBadge role={node.role} /></TableCell>
                 <TableCell className="hud-num text-xs">{String(nodesById.get(node.gid)?.cluster_id ?? "—").padStart(2, "0")}</TableCell>
                 <TableCell className="hud-num text-right text-sky">{score(node.priority_score)}</TableCell>
-                <TableCell className="min-w-64 max-w-md whitespace-normal text-xs leading-5 text-muted-foreground">{node.why}</TableCell>
+                <TableCell className="hud-num text-xs"><span className="block">↓ {money.format(nodesById.get(node.gid)!.in_kzt)}</span><span className="block">↑ {money.format(nodesById.get(node.gid)!.out_kzt)}</span></TableCell>
+                <TableCell className="min-w-52 max-w-md whitespace-normal text-xs leading-5 text-muted-foreground"><p>{node.why}</p>{nodesById.get(node.gid)!.evidence !== node.why && <p className="mt-1">{nodesById.get(node.gid)!.evidence}</p>}</TableCell>
+                <TableCell><ReviewButton gid={node.gid} included={reviewGids.includes(node.gid)} onToggle={onToggle} /></TableCell>
               </TableRow>
             ))}
-            {!candidates.length && <TableRow><TableCell colSpan={6} className="p-8 text-center whitespace-normal">
+            {!candidates.length && <TableRow><TableCell colSpan={8} className="p-8 text-center whitespace-normal">
               <p className="text-sm">В сохранённом топе нет кандидатов с такими фильтрами.</p>
               <p className="mt-2 text-xs text-muted-foreground">Это не означает, что в сети нет таких узлов. Откройте обзор кластеров или сбросьте фильтры.</p>
             </TableCell></TableRow>}
@@ -535,7 +479,7 @@ function TopNodesCard({
   )
 }
 
-function NodeCard({ node }: { node: MoneyNode | null }) {
+function NodeCard({ node, included, onToggle }: { node: MoneyNode | null; included: boolean; onToggle: (gid: string) => void }) {
   if (!node) return null
   return (
     <Card data-agent={node.priority_score > 0.9 ? "waiting" : undefined}>
@@ -543,6 +487,7 @@ function NodeCard({ node }: { node: MoneyNode | null }) {
         <CardDescription className="hud-caps text-primary">Карточка узла</CardDescription>
         <CardTitle className="hud-num break-all text-xl">{node.gid}</CardTitle>
         <RoleBadge role={node.role} />
+        <ReviewButton gid={node.gid} included={included} onToggle={onToggle} />
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="border-l border-primary pl-3 text-sm leading-6 text-foreground">
@@ -583,7 +528,7 @@ function Metric({ label, value, icon }: { label: string; value: string; icon?: "
 }
 
 function RoleSummary({ data }: { data: MoneyGraphData }) {
-  const entries = (Object.entries(data.meta.roleCounts) as [MoneyRole, number][])
+  const entries = MONEY_ROLES.map((role): [MoneyRole, number] => [role, data.meta.roleCounts[role] ?? 0])
     .sort((a, b) => b[1] - a[1])
   return (
     <Card size="sm">
@@ -597,7 +542,7 @@ function RoleSummary({ data }: { data: MoneyGraphData }) {
             <div className="h-1 bg-muted">
               <div
                 className={`h-full ${roleBar[role]}`}
-                style={{ width: `${Math.max(2, (count / data.meta.nodes) * 100)}%` }}
+                style={{ width: `${(count / data.meta.nodes) * 100}%` }}
               />
             </div>
             <span className="hud-num text-right text-xs">{count}</span>

@@ -1,15 +1,14 @@
 import { parseMoneyGraph } from "@/lib/graph-data"
-import type { MoneyGraphData } from "@/lib/graph-types"
+import type { AnalysisResult, AnalysisSource } from "@/lib/graph-types"
 
-const DASHBOARD_URL = "/data/graph.json"
-
-export async function getMoneyGraph(signal?: AbortSignal): Promise<MoneyGraphData> {
-  const response = await fetch(DASHBOARD_URL, {
-    signal: signal ?? AbortSignal.timeout(15_000),
-    cache: "no-store",
-  })
+export async function analyzeMoneyGraph(source: AnalysisSource, files: File[] = []): Promise<AnalysisResult> {
+  const form = new FormData()
+  form.set("source", source)
+  if (source === "upload") for (const file of files) form.append(file.name, file)
+  const response = await fetch("/api/analysis", { method: "POST", body: form, cache: "no-store" })
+  const result = await response.json()
   if (!response.ok) {
-    throw new Error(`Не удалось загрузить результаты: HTTP ${response.status}`)
+    throw new Error(`${result.error || `HTTP ${response.status}`} ${result.action || "Повторите загрузку."}`)
   }
-  return parseMoneyGraph(await response.json())
+  return { graph: parseMoneyGraph(result.graph), run: result.run }
 }

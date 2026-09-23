@@ -19,11 +19,10 @@ export function parseMoneyGraph(value: unknown): MoneyGraphData {
   const fail = (): never => { throw new Error("Формат graph.json не соответствует контракту. Выполните npm run analyze.") }
   if (!isRecord(value) || !isRecord(value.meta)) return fail()
   const { meta, nodes, edges, clusters, topNodes } = value
-  if (![nodes, edges, clusters, topNodes].every(Array.isArray)) return fail()
   if (!Array.isArray(nodes) || !Array.isArray(edges) || !Array.isArray(clusters) || !Array.isArray(topNodes)) return fail()
   if (![meta.nodes, meta.edges, meta.transactions].every(isCount) || !isNumber(meta.turnoverKzt)
     || typeof meta.periodStart !== "string" || typeof meta.periodEnd !== "string"
-    || !isRecord(meta.roleCounts) || !MONEY_ROLES.every((role) => isCount((meta.roleCounts as Record<string, unknown>)[role]))) return fail()
+    || !isRecord(meta.roleCounts) || !Object.entries(meta.roleCounts).every(([role, count]) => isRole(role) && isCount(count))) return fail()
   if (!nodes.every((node) => isRecord(node) && isGid(node.gid) && isRole(node.role)
     && isScore(node.role_score) && isScore(node.priority_score) && typeof node.evidence === "string"
     && [node.cluster_id, node.depth, node.in_deg, node.out_deg, node.seed_reach].every(isCount)

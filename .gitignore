@@ -4,6 +4,7 @@
 /node_modules
 /pipeline/.venv
 /pipeline/.uv-cache
+/pipeline/.tools
 __pycache__/
 .pytest_cache/
 /.pnp

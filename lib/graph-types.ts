@@ -56,7 +56,7 @@ export type MoneyGraphMeta = {
   turnoverKzt: number
   periodStart: string
   periodEnd: string
-  roleCounts: Record<MoneyRole, number>
+  roleCounts: Partial<Record<MoneyRole, number>>
 }
 
 export type MoneyGraphData = {
@@ -66,3 +66,17 @@ export type MoneyGraphData = {
   clusters: ClusterSummary[]
   topNodes: TopNode[]
 }
+
+export type AnalysisSource = "upload" | "organizers"
+
+export type AnalysisRun = {
+  id: string
+  source: AnalysisSource
+  completedAt: string
+  seedCount: number
+  elapsedSeconds: number
+  steps: string[]
+  files: { name: string; size: number }[]
+}
+
+export type AnalysisResult = { graph: MoneyGraphData; run: AnalysisRun }
