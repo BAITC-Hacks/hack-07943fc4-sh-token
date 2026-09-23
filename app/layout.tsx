@@ -15,8 +15,8 @@ const martian = Martian_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ORION",
-  description: "AI-агент",
+  title: "ORION — Граф денег",
+  description: "Объяснимый анализ транзакционной сети для AML-аналитика",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

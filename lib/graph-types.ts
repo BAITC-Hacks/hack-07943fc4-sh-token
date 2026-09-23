@@ -1,0 +1,68 @@
+export type MoneyRole =
+  | "consolidator"
+  | "transit"
+  | "distributor"
+  | "terminal"
+  | "coordinator"
+  | "peripheral"
+
+export type MoneyNode = {
+  gid: string
+  role: MoneyRole
+  role_score: number
+  cluster_id: number
+  priority_score: number
+  evidence: string
+  depth: number
+  is_seed: boolean
+  in_deg: number
+  out_deg: number
+  in_kzt: number
+  out_kzt: number
+  seed_reach: number
+  quick_forward_ratio: number
+  truncated_by_depth: boolean
+}
+
+export type MoneyEdge = {
+  src: string
+  dst: string
+  sum_kzt: number
+  n_tx: number
+  depth: number
+}
+
+export type ClusterSummary = {
+  cluster_id: number
+  n_nodes: number
+  n_seed: number
+  sum_kzt_internal: number
+  top_gids: string[]
+  hypothesis: string
+}
+
+export type TopNode = {
+  rank: number
+  gid: string
+  role: MoneyRole
+  priority_score: number
+  why: string
+}
+
+export type MoneyGraphMeta = {
+  nodes: number
+  edges: number
+  transactions: number
+  turnoverKzt: number
+  periodStart: string
+  periodEnd: string
+  roleCounts: Record<MoneyRole, number>
+}
+
+export type MoneyGraphData = {
+  meta: MoneyGraphMeta
+  nodes: MoneyNode[]
+  edges: MoneyEdge[]
+  clusters: ClusterSummary[]
+  topNodes: TopNode[]
+}
