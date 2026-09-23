@@ -13,6 +13,12 @@ const isScore = (value: unknown) => isNumber(value) && value <= 1
 export const isGid = (value: unknown): value is string =>
   typeof value === "string" && /^\d{18}$/.test(value)
 const isRole = (value: unknown) => MONEY_ROLES.includes(value as MoneyRole)
+const isDateOrNull = (value: unknown) => value === null || (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+const isSignals = (value: unknown) => value === undefined || (isRecord(value)
+  && [value.peak_day_tx, value.synchronous_payers, value.near_threshold_max_daily, value.depth_peer_count].every(isCount)
+  && [value.daily_average_tx, value.depth_turnover_upper_fence].every(isNumber)
+  && typeof value.activity_spike === "boolean" && typeof value.turnover_outlier === "boolean"
+  && isDateOrNull(value.peak_day) && isDateOrNull(value.synchronous_day))
 
 /** Reject broken exports instead of silently presenting mock data as a real result. */
 export function parseMoneyGraph(value: unknown): MoneyGraphData {
@@ -27,7 +33,8 @@ export function parseMoneyGraph(value: unknown): MoneyGraphData {
     && isScore(node.role_score) && isScore(node.priority_score) && typeof node.evidence === "string"
     && [node.cluster_id, node.depth, node.in_deg, node.out_deg, node.seed_reach].every(isCount)
     && [node.in_kzt, node.out_kzt, node.quick_forward_ratio].every(isNumber)
-    && typeof node.is_seed === "boolean" && typeof node.truncated_by_depth === "boolean")) return fail()
+    && typeof node.is_seed === "boolean" && typeof node.truncated_by_depth === "boolean"
+    && isSignals(node.signals))) return fail()
   const gids = new Set(nodes.map((node) => node.gid))
   if (gids.size !== nodes.length || meta.nodes !== nodes.length || meta.edges !== edges.length) return fail()
   if (!edges.every((edge) => isRecord(edge) && gids.has(edge.src) && gids.has(edge.dst)
@@ -40,6 +47,17 @@ export function parseMoneyGraph(value: unknown): MoneyGraphData {
   if (clusterIds.size !== clusters.length || !nodes.every((node) => clusterIds.has(node.cluster_id))) return fail()
   if (!topNodes.every((node) => isRecord(node) && isCount(node.rank) && gids.has(node.gid)
     && isRole(node.role) && isScore(node.priority_score) && typeof node.why === "string")) return fail()
+  if(value.patterns!==undefined){
+    const p=value.patterns
+    if(!isRecord(p)||!Array.isArray(p.chains)||!Array.isArray(p.cycles)
+      ||![p.chain_count,p.cycle_count,p.max_hop_days,p.max_cycle_length,p.max_results].every(isCount)
+      ||typeof p.chain_search_limited!=="boolean"||typeof p.cycle_search_limited!=="boolean")return fail()
+    for(const [routes,cycle] of [[p.chains,false],[p.cycles,true]] as const){
+      if(!routes.every(r=>isRecord(r)&&Array.isArray(r.gids)&&r.gids.every(g=>gids.has(g))
+        &&(cycle?r.gids.length>=4&&r.gids.length<=5&&r.gids[0]===r.gids.at(-1):r.gids.length===3&&isCount(r.distinct_days))
+        &&isCount(r.occurrences)&&Array.isArray(r.examples)&&r.examples.every(d=>Array.isArray(d)&&d.length===(r.gids as unknown[]).length-1&&d.every(v=>typeof v==="string"&&isDateOrNull(v)))))return fail()
+    }
+  }
   return value as MoneyGraphData
 }
 

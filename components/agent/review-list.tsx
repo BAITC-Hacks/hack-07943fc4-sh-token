@@ -26,8 +26,8 @@ export function ReviewList({ nodes, graph, run, onRemove, onNode }: {
   }
   return <Card id="review-list" className="scroll-mt-4">
     <CardHeader className="flex flex-wrap items-start justify-between gap-3">
-      <div className="space-y-1"><CardDescription className="hud-caps text-primary">05 / Решение аналитика</CardDescription><CardTitle>Мой список проверки / {nodes.length}</CardTitle></div>
-      <Button disabled={!nodes.length} onClick={download}><Download />Экспортировать список в CSV</Button>
+      <div className="space-y-1"><CardDescription className="hud-caps text-primary">Решение аналитика</CardDescription><CardTitle>Мой список проверки / {nodes.length}</CardTitle></div>
+      <Button variant="outline" disabled={!nodes.length} onClick={download}><Download />Экспортировать список в CSV</Button>
     </CardHeader>
     <CardContent className="space-y-3">
       <p className="text-xs leading-5 text-muted-foreground">Только выбранные вами узлы, не автоматический топ. Роли и score сохранены без изменений. Список хранится в этой вкладке до перезагрузки или нового расчёта: экспортируйте его перед уходом.</p>

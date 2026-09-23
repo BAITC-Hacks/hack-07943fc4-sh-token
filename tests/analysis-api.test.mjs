@@ -27,6 +27,21 @@ test("real API: organizer case equals uploaded parquet; errors never return a mo
   assert.ok(a.run.seedCount > 0)
   assert.ok(a.run.elapsedSeconds > 0)
   assert.ok(a.graph.nodes.every((node) => typeof node.gid === "string" && /^\d{18}$/.test(node.gid)))
+  for(const name of ['nodes_roles.csv','clusters.csv','top_nodes.csv']){
+    const download=await fetch(`${base}/api/analysis/${a.run.id}/${name}`)
+    assert.equal(download.status,200)
+    assert.equal(download.headers.get('cache-control'),'no-store')
+    assert.equal(await download.text(),readFileSync(new URL(`../out/${name}`,import.meta.url),'utf8'))
+  }
+  assert.equal((await fetch(`${base}/api/analysis/missing/top_nodes.csv`)).status,410)
+  assert.equal((await fetch(`${base}/api/analysis/${a.run.id}/unknown.csv`)).status,404)
+  const ask=(body,headers={})=>fetch(`${base}/api/assistant`,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)})
+  const question={runId:a.run.id,question:'Справка',focusGid:a.graph.topNodes[0].gid,selectedGids:[]}
+  assert.equal((await ask({...question,question:''})).status,400)
+  assert.equal((await ask({...question,runId:'missing'})).status,410)
+  assert.equal((await ask({...question,focusGid:'unknown'})).status,400)
+  assert.equal((await ask({...question,question:'x'.repeat(1201)})).status,400)
+  assert.equal((await ask(question,{Origin:'https://unrelated.invalid'})).status,403)
   const missing = upload(); missing.delete("nodes.parquet")
   assert.equal((await post(missing)).status, 400)
   const invalid = upload(); invalid.set("nodes.parquet", new File(["not parquet"], "nodes.parquet"))

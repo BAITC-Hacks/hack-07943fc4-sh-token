@@ -560,6 +560,11 @@
 }
 @utility hud-caps { text-transform: uppercase; letter-spacing: 0.09em; }
 @utility hud-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* Dense analyst workspace: keep identifiers legible without changing the HUD kit. */
+.analyst-workspace .hud-num { letter-spacing: 0; }
+.analyst-workspace .hud-tag { column-gap: 0.5rem; line-height: 1.6; }
+.analyst-workspace [data-slot="button"] { column-gap: 0.5rem; }
 @utility text-glow { text-shadow: 0 0 18px color-mix(in srgb, currentColor 45%, transparent); }
 @utility hud-grid { background-image: radial-gradient(rgba(200, 204, 212, 0.3) 0.6px, transparent 0.8px); background-size: 44px 44px; }
 @utility hud-blueprint {

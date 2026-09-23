@@ -15,7 +15,7 @@ const martian = Martian_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ORION — Граф денег",
+  title: "STRATA — Financial Intelligence",
   description: "Объяснимый анализ транзакционной сети для AML-аналитика",
 };
 

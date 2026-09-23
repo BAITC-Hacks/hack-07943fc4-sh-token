@@ -7,6 +7,7 @@ import { promisify } from "node:util"
 import { AnalysisError, checkParquet, MAX_REQUEST_BYTES, PARQUET_FILES, validateUpload } from "@/lib/analysis-contract"
 import { parseMoneyGraph } from "@/lib/graph-data"
 import type { AnalysisResult, AnalysisSource } from "@/lib/graph-types"
+import { saveAnalysis, EXPORT_FILES, type ExportName } from "./analysis-store"
 
 const execute = promisify(execFile)
 const runtimeState = globalThis as typeof globalThis & { orionAnalysisBusy?: boolean }
@@ -108,11 +109,14 @@ export async function runAnalysisRequest(request: Request): Promise<AnalysisResu
     if (log.status !== "done" || !Number.isFinite(log.elapsedSeconds) || !Array.isArray(log.steps)) {
       throw new AnalysisError("Пайплайн не вернул корректный журнал завершения.", "Проверьте установку и запустите npm run analyze в терминале.", 500)
     }
-    return { graph, run: {
+    const result: AnalysisResult = { graph, run: {
       id: randomUUID(), source, completedAt: new Date().toISOString(),
       seedCount: graph.nodes.filter((node) => node.is_seed).length,
       elapsedSeconds: log.elapsedSeconds, steps: log.steps, files,
     } }
+    const exports = Object.fromEntries(await Promise.all(EXPORT_FILES.map(async name => [name, await readFile(path.join(output, name), "utf8")]))) as Record<ExportName, string>
+    saveAnalysis(result, exports)
+    return result
   } finally {
     try {
       // Only this request's mkdtemp directory is removed, never shared case data.

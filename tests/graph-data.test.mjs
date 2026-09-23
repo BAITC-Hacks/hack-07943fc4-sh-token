@@ -65,6 +65,7 @@ test("malformed results fail with a useful recovery command", () => {
     (data) => { data.nodes[0].priority_score = 2 },
     (data) => { data.edges[0].src = "missing" },
     (data) => { data.nodes[0].cluster_id = -1 },
+    (data) => { data.nodes[0].signals = { activity_spike: "yes" } },
   ]) {
     const data = structuredClone(source)
     mutate(data)
