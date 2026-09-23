@@ -4,6 +4,13 @@ import { createHash } from "node:crypto"
 import test from "node:test"
 
 const base = process.env.ORION_TEST_URL || "http://127.0.0.1:3000"
+const fetch = (url, options = {}) => {
+  const headers = new Headers(options.headers)
+  if (process.env.DEMO_AUTH_USER && process.env.DEMO_AUTH_PASSWORD) {
+    headers.set("Authorization", `Basic ${Buffer.from(`${process.env.DEMO_AUTH_USER}:${process.env.DEMO_AUTH_PASSWORD}`).toString("base64")}`)
+  }
+  return globalThis.fetch(url, { ...options, headers })
+}
 const names = ["nodes.parquet", "edges.parquet", "transactions.parquet"]
 const bytes = Object.fromEntries(names.map((name) => [name, readFileSync(new URL(`../data/${name}`, import.meta.url))]))
 const fingerprint = () => names.map((name) => createHash("sha256").update(readFileSync(new URL(`../data/${name}`, import.meta.url))).digest("hex"))

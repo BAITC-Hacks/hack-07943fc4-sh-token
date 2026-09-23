@@ -67,6 +67,6 @@ export function AnalysisInput({ busy, error, reviewCount, onRun, onBack }: {
       </CardContent>
     </Card>
     <div className="grid gap-4 text-xs text-muted-foreground sm:grid-cols-3">{["01 / Проследить потоки", "02 / Понять приоритеты", "03 / Выбрать и выгрузить"].map((label) => <p key={label} className="hud-caps border-t border-border pt-3">{label}</p>)}</div>
-    <p className="text-xs text-dim">Файлы остаются на локальном сервере. Выводы — гипотезы для проверки по наблюдаемой сети.</p>
+    <p className="text-xs text-dim">Файлы обрабатываются на сервере приложения и не отправляются в OpenAI. Для публичного демо используйте только обезличенные данные. Выводы — гипотезы для проверки.</p>
   </section>
 }

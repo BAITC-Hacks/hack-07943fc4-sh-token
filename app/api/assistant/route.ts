@@ -2,12 +2,15 @@ import OpenAI from "openai"
 import { getAnalysis } from "@/lib/server/analysis-store"
 import { boundedJson, sameOrigin } from "@/lib/server/request-guard"
 import { answerGraphQuery, ASSISTANT_INTENTS, validateAssistantPlan } from "@/lib/graph-investigation"
+import { checkDemoAccess } from "@/lib/server/demo-access"
+import { takeAiBudget } from "@/lib/server/ai-budget"
 
 export const runtime = "nodejs"
 const state=globalThis as typeof globalThis & { strataAssistantBusy?:boolean }
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{"Cache-Control":"no-store"}})
-export async function GET(){return json({configured:!!process.env.OPENAI_API_KEY&&!!process.env.OPENAI_MODEL,model:process.env.OPENAI_MODEL||null})}
+export async function GET(request:Request){const denied=checkDemoAccess(request);if(denied)return denied;return json({configured:!!process.env.OPENAI_API_KEY&&!!process.env.OPENAI_MODEL,model:process.env.OPENAI_MODEL||null})}
 export async function POST(request:Request){
+  const denied=checkDemoAccess(request);if(denied)return denied
   if(!sameOrigin(request))return json({error:"Запрос с другого сайта запрещён."},403)
   let body:Record<string,unknown>
   try{body=await boundedJson(request) as Record<string,unknown>;if(!body||Array.isArray(body))throw new Error()}catch{return json({error:"Некорректный JSON или запрос больше 16 КиБ."},400)}
@@ -21,8 +24,9 @@ export async function POST(request:Request){
   if(explicit.some(g=>!known.has(g)))return json({error:"Один из GID в вопросе отсутствует в текущем графе."},400)
   const gids=[...new Set([body.focusGid,...selected,...explicit])]
   if(gids.length>20)return json({error:"Слишком много клиентов в контексте. Сократите вопрос."},400)
-  if(!process.env.OPENAI_API_KEY||!process.env.OPENAI_MODEL)return json({error:"Добавьте OPENAI_API_KEY и OPENAI_MODEL в .env.local и перезапустите сервер."},503)
+  if(!process.env.OPENAI_API_KEY||!process.env.OPENAI_MODEL)return json({error:"Владелец сервера должен настроить OPENAI_API_KEY и OPENAI_MODEL: в секретах хостинга или локальном .env.local."},503)
   if(state.strataAssistantBusy)return json({error:"Ассистент обрабатывает другой вопрос. Повторите после завершения."},429)
+  if(!takeAiBudget())return json({error:"Лимит демо-ассистента: 30 обращений в час и 200 в сутки на весь сервер. Повторите позже; граф и выгрузки доступны."},429)
   state.strataAssistantBusy=true
   try{
     // Replace every known GID with an ephemeral alias. No graph, amounts or raw parquet leave this server.
@@ -41,7 +45,7 @@ export async function POST(request:Request){
     return json({answer:answerGraphQuery(graph,plan),intent:plan.intent,model:process.env.OPENAI_MODEL})
   }catch(error){
     const status=error instanceof OpenAI.APIError?error.status:undefined
-    const message=status===401?"OpenAI отклонил ключ. Проверьте .env.local.":status===429?"OpenAI: исчерпана квота или превышен лимит. Проверьте API-биллинг и повторите позже.":status===404?"Модель недоступна этому API-проекту. Проверьте OPENAI_MODEL.":"Не удалось получить корректный ответ OpenAI. Повторите запрос или уточните вопрос."
+    const message=status===401?"OpenAI отклонил ключ. Владелец сервера должен проверить OPENAI_API_KEY.":status===429?"OpenAI: исчерпана квота или превышен лимит. Проверьте API-биллинг и повторите позже.":status===404?"Модель недоступна этому API-проекту. Проверьте OPENAI_MODEL.":"Не удалось получить корректный ответ OpenAI. Повторите запрос или уточните вопрос."
     return json({error:message},502)
   }finally{state.strataAssistantBusy=false}
 }
